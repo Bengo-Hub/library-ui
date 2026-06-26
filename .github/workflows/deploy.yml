@@ -1,0 +1,111 @@
+name: Build and Deploy Library UI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  sync-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.sync.outputs.result }}
+    steps:
+      - name: Check and sync missing secrets
+        id: sync
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          _REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          _REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          _KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          REQUIRED_SECRETS="REGISTRY_USERNAME REGISTRY_PASSWORD KUBE_CONFIG"
+          EXISTING=$(gh secret list --repo "${{ github.repository }}" --json name -q '.[].name' 2>/dev/null || echo "")
+          MISSING=()
+          for secret in $REQUIRED_SECRETS; do
+            echo "$EXISTING" | grep -qx "$secret" || MISSING+=("$secret")
+          done
+          if [ ${#MISSING[@]} -eq 0 ]; then
+            echo "result=skipped" >> $GITHUB_OUTPUT; exit 0
+          fi
+          gh workflow run sync-secrets.yml --repo Bengo-Hub/devops-k8s --ref main \
+            -f target_repo="${{ github.repository }}" -f secrets="${MISSING[*]}"
+          for i in $(seq 1 18); do
+            sleep 10
+            CURRENT=$(gh secret list --repo "${{ github.repository }}" --json name -q '.[].name' 2>/dev/null || echo "")
+            STILL=0; for s in "${MISSING[@]}"; do echo "$CURRENT" | grep -qx "$s" || STILL=$((STILL+1)); done
+            if [ $STILL -eq 0 ]; then echo "result=synced" >> $GITHUB_OUTPUT; exit 0; fi
+          done
+          echo "result=partial" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: sync-secrets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Re-trigger if secrets were just synced
+        if: needs.sync-secrets.outputs.result == 'synced'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh workflow run deploy.yml --repo "${{ github.repository }}" --ref "${{ github.ref }}"
+          exit 0
+
+      - name: Checkout code
+        if: needs.sync-secrets.outputs.result != 'synced'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        if: needs.sync-secrets.outputs.result != 'synced'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install DevOps Tools
+        if: needs.sync-secrets.outputs.result != 'synced'
+        uses: Bengo-Hub/devops-k8s/.github/actions/install-devops-tools@main
+
+      - name: Run production deployment
+        if: needs.sync-secrets.outputs.result != 'synced'
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          GITHUB_SHA: ${{ github.sha }}
+          DEPLOY: "true"
+          NAMESPACE: library
+          REGISTRY_SERVER: docker.io
+          REGISTRY_NAMESPACE: codevertex
+          APP_NAME: library-ui
+          NEXT_PUBLIC_API_URL: https://libraryapi.codevertexitsolutions.com
+          NEXT_PUBLIC_SSO_URL: https://sso.codevertexitsolutions.com
+          GIT_USER: ${{ secrets.GIT_USER || 'Library UI Bot' }}
+          GIT_EMAIL: ${{ secrets.GIT_EMAIL || 'dev@bengobox.com' }}
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Tag and push :latest
+        if: success() && needs.sync-secrets.outputs.result != 'synced'
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          set -e
+          IMAGE_REPO="docker.io/codevertex/library-ui"
+          SHORT_SHA=${GITHUB_SHA::8}
+          echo "$REGISTRY_PASSWORD" | docker login docker.io -u "$REGISTRY_USERNAME" --password-stdin
+          docker pull "${IMAGE_REPO}:${SHORT_SHA}" || true
+          docker tag "${IMAGE_REPO}:${SHORT_SHA}" "${IMAGE_REPO}:latest"
+          docker push "${IMAGE_REPO}:latest"
+
+      - name: Refresh ArgoCD app
+        if: success() && needs.sync-secrets.outputs.result != 'synced'
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          if [ -z "${KUBE_CONFIG_B64}" ]; then exit 0; fi
+          mkdir -p ~/.kube
+          echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config 2>/dev/null || echo "$KUBE_CONFIG_B64" > ~/.kube/config
+          kubectl patch application library-ui -n argocd --type merge \
+            -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' 2>/dev/null || true

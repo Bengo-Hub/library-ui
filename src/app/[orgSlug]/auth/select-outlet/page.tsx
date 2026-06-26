@@ -1,0 +1,223 @@
+'use client';
+
+import { apiClient } from '@/lib/api/client';
+import { useAuthStore } from '@/store/auth';
+import { useOutletStore, type OutletInfo, LIBRARY_SELECTED_BRANCH_KEY } from '@/store/outlet';
+import { useBranding } from '@/providers/branding-provider';
+import { Globe, Library, ChevronRight } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+
+// HQ = can access all branches. Driven by the server flag; this list is a client-side fallback.
+const HQ_ROLES = ['admin', 'library_admin', 'superuser', 'super_admin'];
+
+function SelectBranchContent() {
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const orgSlug = params?.orgSlug as string;
+  const returnTo = searchParams?.get('returnTo');
+
+  const user = useAuthStore((s) => s.user);
+  const { setOutlet } = useOutletStore();
+  const { tenant } = useBranding();
+
+  const [branches, setBranches] = useState<OutletInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState<string | 'all' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const isHQUser =
+    user?.isPlatformOwner ||
+    user?.isSuperUser ||
+    (user?.roles ?? []).some((r) => HQ_ROLES.includes(r));
+
+  const lastBranchId = typeof window !== 'undefined'
+    ? localStorage.getItem(LIBRARY_SELECTED_BRANCH_KEY) : null;
+
+  const tenantRef = orgSlug;
+  const destination = returnTo ? decodeURIComponent(returnTo) : `/${orgSlug}`;
+
+  function handleSelect(branch: OutletInfo) {
+    setSelecting(branch.id);
+    setOutlet(branch);
+    localStorage.setItem(LIBRARY_SELECTED_BRANCH_KEY, branch.id);
+    apiClient.setOutletID(branch.id);
+    router.replace(destination);
+  }
+
+  function handleSelectAll() {
+    setSelecting('all');
+    setOutlet(null);
+    localStorage.setItem(LIBRARY_SELECTED_BRANCH_KEY, 'all');
+    apiClient.setOutletID(null);
+    router.replace(destination);
+  }
+
+  useEffect(() => {
+    if (!tenantRef) return;
+    apiClient
+      .get<{ data?: OutletInfo[]; is_hq?: boolean } | OutletInfo[]>(`/api/v1/${tenantRef}/library/branches`)
+      .then((resp) => {
+        const data = Array.isArray(resp) ? resp : (resp?.data ?? []);
+        const serverIsHQ = Array.isArray(resp) ? isHQUser : !!resp?.is_hq;
+        const active = data.filter((o) => o.status !== 'inactive' && o.status !== 'archived');
+        const hq = serverIsHQ || isHQUser;
+
+        if (!hq) {
+          if (active.length === 0) { setBranches([]); setLoading(false); return; }
+          if (active.length === 1) { handleSelect(active[0]); return; }
+        }
+
+        if (hq && lastBranchId === 'all') { handleSelectAll(); return; }
+
+        const sorted = [...active].sort((a, b) => {
+          if (a.id === lastBranchId) return -1;
+          if (b.id === lastBranchId) return 1;
+          return 0;
+        });
+        setBranches(sorted);
+
+        if (sorted.length === 1) { handleSelect(sorted[0]); return; }
+        if (lastBranchId) {
+          const last = sorted.find((o) => o.id === lastBranchId);
+          if (last) { handleSelect(last); return; }
+        }
+        if (!hq && sorted.length) { handleSelect(sorted[0]); return; }
+
+        setLoading(false);
+      })
+      .catch(() => { setError('Failed to load branches. Please try again.'); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantRef]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading branches...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-lg">
+        <div className="flex justify-center mb-8">
+          {tenant?.logoUrl ? (
+            <img src={tenant.logoUrl} alt={tenant.name ?? orgSlug} className="h-12 w-auto object-contain" />
+          ) : (
+            <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+              <Library className="h-6 w-6 text-primary-foreground" />
+            </div>
+          )}
+        </div>
+
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-black text-foreground mb-2">
+            {isHQUser ? 'Select View' : 'Select Your Branch'}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {isHQUser
+              ? 'Choose a specific branch or view data across all branches'
+              : 'Choose the library branch you\'re working in'}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-sm text-destructive text-center">
+            {error}
+          </div>
+        )}
+
+        {branches.length === 0 && !error && (
+          <div className="text-center py-12 text-muted-foreground">
+            <Library className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No branches found. Contact your administrator.</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {isHQUser && branches.length > 1 && (
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              disabled={!!selecting}
+              className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 transition-all duration-200 text-left group disabled:opacity-60"
+            >
+              <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25 transition-colors">
+                {selecting === 'all' ? (
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Globe className="h-5 w-5 text-primary" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-primary">All Branches</p>
+                <p className="text-xs text-muted-foreground mt-0.5">View data across all library branches</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-primary/50 group-hover:text-primary transition-colors shrink-0" />
+            </button>
+          )}
+
+          {branches.map((branch) => {
+            const isLastUsed = branch.id === lastBranchId;
+            const isSelecting = selecting === branch.id;
+            return (
+              <button
+                key={branch.id}
+                type="button"
+                onClick={() => handleSelect(branch)}
+                disabled={!!selecting}
+                className="w-full flex items-center gap-4 p-4 rounded-2xl border border-border bg-card hover:bg-accent transition-all duration-200 text-left group disabled:opacity-60"
+              >
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                  <Library className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-foreground truncate">{branch.name}</p>
+                    {isLastUsed && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary">Last used</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground font-mono">{branch.code}</span>
+                    {branch.is_hq && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-500">HQ</span>
+                    )}
+                  </div>
+                </div>
+                {isSelecting ? (
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {branches.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground mt-6">
+            You can switch branches from the header at any time.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function SelectBranchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <SelectBranchContent />
+    </Suspense>
+  );
+}

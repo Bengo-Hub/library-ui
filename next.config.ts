@@ -1,0 +1,40 @@
+import withPWAInit from "@ducanh2912/next-pwa";
+import type { NextConfig } from "next";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  // Offline/PWA enabled for production builds (next build --webpack regenerates sw.js);
+  // disabled in dev to avoid stale service-worker caching while iterating.
+  disable: process.env.NODE_ENV === "development",
+  register: true,
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
+  workboxOptions: {
+    skipWaiting: false,
+    clientsClaim: true,
+  },
+});
+
+const nextConfig: NextConfig = {
+  ...(process.env.SKIP_STANDALONE !== 'true' && { output: 'standalone' as const }),
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "libraryapi.codevertexitsolutions.com",
+      },
+      {
+        protocol: "https",
+        hostname: "accounts.codevertexitsolutions.com",
+      },
+      {
+        protocol: "https",
+        hostname: "sso.codevertexitsolutions.com",
+      },
+    ],
+  },
+  turbopack: {},
+};
+
+export default withPWA(nextConfig);
