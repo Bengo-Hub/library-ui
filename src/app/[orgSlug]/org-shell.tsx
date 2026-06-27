@@ -3,6 +3,7 @@
 import { Header } from '@/components/header';
 import { Sidebar } from '@/components/sidebar';
 import { OutletGate } from '@/components/outlet-gate';
+import { PlatformScopeGuard } from '@/components/platform-scope-guard';
 import { AuthProvider } from '@/providers/auth-provider';
 import { BrandingProvider } from '@/providers/branding-provider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -70,6 +71,7 @@ export function OrgShell({ children }: { children: ReactNode }) {
             <AuthProvider>
                 <BrandingProvider>
                     <ManifestInjector />
+                    <PlatformScopeGuard />
                     <OutletGate />
                     <PWAUpdateBanner />
                     <PWARegistration />
