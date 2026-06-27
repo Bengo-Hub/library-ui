@@ -164,9 +164,12 @@ button:focus-visible {
     --chart-4: 142 71% 45%;
     --chart-5: 38 92% 50%;
     --radius: 0.75rem;
-    --sidebar: 222 47% 13%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-border: 222 40% 20%;
+    /* Light-mode sidebar: a light surface with dark foreground so it respects the active
+       theme (was hardcoded dark navy, which ignored light/system mode). Dark mode keeps the
+       deep navy below in .dark. */
+    --sidebar: 210 40% 99%;
+    --sidebar-foreground: 222 47% 16%;
+    --sidebar-border: 214 28% 90%;
   }
 
   .dark {

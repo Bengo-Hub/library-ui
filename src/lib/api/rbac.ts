@@ -11,11 +11,13 @@ export interface Role {
 }
 
 export interface TeamMember {
-  id: string;
+  user_id: string;
   email: string;
   full_name?: string;
+  name?: string;
   roles: string[];
-  status?: string;
+  is_active?: boolean;
+  has_pin?: boolean;
 }
 
 export const rbacApi = {
@@ -23,12 +25,19 @@ export const rbacApi = {
     const res = await apiClient.get<{ data?: Role[] } | Role[]>(`${libBase(orgSlug)}/rbac/roles`);
     return Array.isArray(res) ? res : (res.data ?? []);
   },
+  // API returns either bare codes or {code,label} objects — normalize to code strings (the
+  // matrix groups by code.split('.')). Was the source of the "e.split is not a function" crash.
   listPermissions: async (orgSlug: string): Promise<string[]> => {
-    const res = await apiClient.get<{ data?: string[] } | string[]>(`${libBase(orgSlug)}/rbac/permissions`);
-    return Array.isArray(res) ? res : (res.data ?? []);
+    const res = await apiClient.get<{ data?: Array<string | { code: string }> } | Array<string | { code: string }>>(`${libBase(orgSlug)}/rbac/permissions`);
+    const arr = Array.isArray(res) ? res : (res.data ?? []);
+    return arr.map((p) => (typeof p === 'string' ? p : p?.code)).filter((c): c is string => typeof c === 'string' && c.length > 0);
   },
+  createRole: (orgSlug: string, data: { name: string; description?: string; permissions?: string[] }) =>
+    apiClient.post<Role>(`${libBase(orgSlug)}/rbac/roles`, data),
   updateRole: (orgSlug: string, id: string, data: { permissions: string[]; description?: string }) =>
     apiClient.put<Role>(`${libBase(orgSlug)}/rbac/roles/${id}`, data),
+  deleteRole: (orgSlug: string, id: string) =>
+    apiClient.delete<void>(`${libBase(orgSlug)}/rbac/roles/${id}`),
   listTeam: async (orgSlug: string): Promise<TeamMember[]> => {
     const res = await apiClient.get<{ data?: TeamMember[] } | TeamMember[]>(`${libBase(orgSlug)}/team`);
     return Array.isArray(res) ? res : (res.data ?? []);

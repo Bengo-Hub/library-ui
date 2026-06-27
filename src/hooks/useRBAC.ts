@@ -33,3 +33,19 @@ export function useAssignRole(orgSlug: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'team', orgSlug] }),
   });
 }
+
+export function useCreateRole(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; permissions?: string[] }) => rbacApi.createRole(orgSlug, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'roles', orgSlug] }),
+  });
+}
+
+export function useDeleteRole(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => rbacApi.deleteRole(orgSlug, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'roles', orgSlug] }),
+  });
+}
