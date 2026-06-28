@@ -16,8 +16,17 @@ export interface TeamMember {
   full_name?: string;
   name?: string;
   roles: string[];
+  branch_ids?: string[];
   is_active?: boolean;
   has_pin?: boolean;
+}
+
+export interface LibraryBranch {
+  id: string;
+  name: string;
+  code: string;
+  is_default?: boolean;
+  is_active?: boolean;
 }
 
 export const rbacApi = {
@@ -44,4 +53,10 @@ export const rbacApi = {
   },
   assignRole: (orgSlug: string, userId: string, roles: string[]) =>
     apiClient.put<TeamMember>(`${libBase(orgSlug)}/team/${userId}/roles`, { roles }),
+  assignBranches: (orgSlug: string, userId: string, branchIds: string[]) =>
+    apiClient.put<{ updated: boolean }>(`${libBase(orgSlug)}/team/${userId}/branches`, { branch_ids: branchIds }),
+  listBranches: async (orgSlug: string): Promise<LibraryBranch[]> => {
+    const res = await apiClient.get<{ data?: LibraryBranch[] } | LibraryBranch[]>(`${libBase(orgSlug)}/branches`);
+    return Array.isArray(res) ? res : (res.data ?? []);
+  },
 };

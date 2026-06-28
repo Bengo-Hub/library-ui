@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Shield, Check, Loader2, Plus, Trash2, KeyRound, Pencil } from 'lucide-react';
-import { useRoles, useAllPermissions, useUpdateRole, useTeam, useAssignRole, useCreateRole, useDeleteRole } from '@/hooks/useRBAC';
+import { Users, Shield, Check, Loader2, Plus, Trash2, KeyRound, Pencil, Building2 } from 'lucide-react';
+import { useRoles, useAllPermissions, useUpdateRole, useTeam, useAssignRole, useCreateRole, useDeleteRole, useBranches, useAssignBranches } from '@/hooks/useRBAC';
 import { pinApi } from '@/lib/api/pin';
 import { PageHeader, Skeleton, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
@@ -100,12 +100,16 @@ export default function TeamPage() {
   const assignRole = useAssignRole(orgSlug);
   const createRole = useCreateRole(orgSlug);
   const deleteRole = useDeleteRole(orgSlug);
+  const { data: branches = [] } = useBranches(orgSlug);
+  const assignBranches = useAssignBranches(orgSlug);
 
   const [tab, setTab] = useState<'members' | 'roles'>('members');
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
   const [memberRoles, setMemberRoles] = useState<Set<string>>(new Set());
   const [pinMember, setPinMember] = useState<TeamMember | null>(null);
   const [pin, setPin] = useState('');
+  const [branchMember, setBranchMember] = useState<TeamMember | null>(null);
+  const [memberBranches, setMemberBranches] = useState<Set<string>>(new Set());
   const [newRoleOpen, setNewRoleOpen] = useState(false);
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [toDelete, setToDelete] = useState<Role | null>(null);
@@ -117,6 +121,14 @@ export default function TeamPage() {
       await assignRole.mutateAsync({ userId: editMember.user_id, roles: Array.from(memberRoles) });
       toast.success('Roles updated'); setEditMember(null);
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to update roles')); }
+  }
+  function openBranches(m: TeamMember) { setBranchMember(m); setMemberBranches(new Set(m.branch_ids ?? [])); }
+  async function saveBranches() {
+    if (!branchMember) return;
+    try {
+      await assignBranches.mutateAsync({ userId: branchMember.user_id, branchIds: Array.from(memberBranches) });
+      toast.success('Branches updated'); setBranchMember(null);
+    } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to update branches')); }
   }
   async function savePin() {
     if (!pinMember || pin.length < 4) { toast.error('PIN must be at least 4 digits'); return; }
@@ -169,8 +181,9 @@ export default function TeamPage() {
                     {m.roles.map((r) => <Badge key={r} variant="outline">{r}</Badge>)}
                     {m.has_pin && <Badge variant="success" className="gap-1"><KeyRound className="h-3 w-3" />PIN</Badge>}
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openEdit(m)}><Pencil className="h-3.5 w-3.5" /> Roles</Button>
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openBranches(m)}><Building2 className="h-3.5 w-3.5" /> Branches</Button>
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setPinMember(m); setPin(''); }}><KeyRound className="h-3.5 w-3.5" /> PIN</Button>
                   </div>
                 </li>
@@ -205,6 +218,27 @@ export default function TeamPage() {
                 <span className={`h-5 w-5 rounded-md border inline-flex items-center justify-center ${on ? 'bg-primary border-primary text-primary-foreground' : 'border-border'}`}>{on && <Check className="h-3.5 w-3.5" />}</span>
                 <span className="text-sm font-medium">{r.name}</span>
                 {r.description && <span className="text-xs text-muted-foreground truncate">{r.description}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </Dialog>
+
+      {/* Assign branches */}
+      <Dialog open={!!branchMember} onClose={() => setBranchMember(null)} title={`Branches · ${branchMember?.name ?? branchMember?.email ?? ''}`}
+        description="Branches this staff member may log in to. Admins (library_admin) can log in to any branch regardless."
+        footer={<><Button variant="outline" onClick={() => setBranchMember(null)}>Cancel</Button><Button onClick={saveBranches} disabled={assignBranches.isPending} className="gap-1.5">{assignBranches.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Save</Button></>}>
+        <div className="space-y-2">
+          {branches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No branches yet. Add branches under Settings → Branches.</p>
+          ) : branches.map((b) => {
+            const on = memberBranches.has(b.id);
+            return (
+              <button key={b.id} type="button" onClick={() => setMemberBranches((s) => { const n = new Set(s); if (n.has(b.id)) n.delete(b.id); else n.add(b.id); return n; })}
+                className={`w-full flex items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition-colors ${on ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
+                <span className={`h-5 w-5 rounded-md border inline-flex items-center justify-center ${on ? 'bg-primary border-primary text-primary-foreground' : 'border-border'}`}>{on && <Check className="h-3.5 w-3.5" />}</span>
+                <span className="text-sm font-medium flex-1">{b.name}</span>
+                <span className="text-xs text-muted-foreground">{b.code}</span>
               </button>
             );
           })}

@@ -8,7 +8,11 @@ import { Button } from '@/components/ui/base';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useBranches } from '@/hooks/useBranches';
+import { useOutletStore } from '@/store/outlet';
 import { COPY_STATUSES, type Copy, type CopyInput, type CopyStatus } from '@/lib/api/copies';
+
+const FIELD = 'w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 export function CopyFormDialog({
   open, orgSlug, bibId, initial, saving, onSubmit, onClose,
@@ -23,8 +27,17 @@ export function CopyFormDialog({
 }) {
   const { data: branchesPage } = useBranches(orgSlug);
   const branches = branchesPage?.data ?? [];
+  const currentOutlet = useOutletStore((s) => s.outlet);
   const [form, setForm] = useState<CopyInput>({ bib_record_id: bibId, status: 'available' });
   const [scanOpen, setScanOpen] = useState(false);
+
+  // Default branch for a NEW copy: the branch the user is logged in to, else the tenant's
+  // default/HQ branch, else the first branch. Acquisition date defaults to today.
+  const defaultBranchId =
+    currentOutlet?.id
+    || branches.find((b) => (b as { is_default?: boolean }).is_default)?.id
+    || branches[0]?.id
+    || '';
 
   useEffect(() => {
     if (initial) {
@@ -34,9 +47,9 @@ export function CopyFormDialog({
         acquisition_date: initial.acquisition_date, price: initial.price ?? undefined, condition: initial.condition, notes: initial.notes,
       });
     } else {
-      setForm({ bib_record_id: bibId, status: 'available' });
+      setForm({ bib_record_id: bibId, status: 'available', branch_id: defaultBranchId || undefined, acquisition_date: todayISO() });
     }
-  }, [initial, bibId, open]);
+  }, [initial, bibId, open, defaultBranchId]);
 
   function set<K extends keyof CopyInput>(key: K, value: CopyInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -66,13 +79,13 @@ export function CopyFormDialog({
       }
     >
       <div className="space-y-4">
-        <Field label="Barcode" required>
-          <div className="flex gap-2">
-            <input value={form.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} placeholder="Copy barcode" className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
-            <Button type="button" variant="outline" className="gap-1.5" onClick={() => setScanOpen(true)}><ScanLine className="h-4 w-4" /> Scan</Button>
+        <Field label="Barcode" required hint="Each physical copy gets its own unique barcode (separate from the ISBN).">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={form.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} placeholder="Copy barcode" className={`${FIELD} sm:flex-1`} />
+            <Button type="button" variant="outline" className="gap-1.5 shrink-0" onClick={() => setScanOpen(true)}><ScanLine className="h-4 w-4" /> Scan</Button>
           </div>
         </Field>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Branch">
             <Select value={form.branch_id ?? ''} onChange={(e) => set('branch_id', e.target.value || undefined)}>
               <option value="">— Select —</option>
@@ -85,16 +98,16 @@ export function CopyFormDialog({
             </Select>
           </Field>
           <Field label="Shelf location">
-            <input value={form.shelf_location ?? ''} onChange={(e) => set('shelf_location', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+            <input value={form.shelf_location ?? ''} onChange={(e) => set('shelf_location', e.target.value)} className={FIELD} />
           </Field>
-          <Field label="Call number">
-            <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+          <Field label="Call number" hint="Spine/shelf locator (e.g. 823.914 OGO)">
+            <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} className={FIELD} />
           </Field>
           <Field label="Acquisition date">
-            <input type="date" value={form.acquisition_date ?? ''} onChange={(e) => set('acquisition_date', e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+            <input type="date" value={form.acquisition_date ?? ''} onChange={(e) => set('acquisition_date', e.target.value)} className={FIELD} />
           </Field>
           <Field label="Price">
-            <input type="number" step="0.01" value={form.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+            <input type="number" step="0.01" value={form.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} className={FIELD} />
           </Field>
         </div>
         <Field label="Notes">

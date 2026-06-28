@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client';
-import { buildAuthorizeUrl, buildLogoutUrl, exchangeCodeForTokens, fetchLibraryProfile, revokeServerSession } from '@/lib/auth/api';
+import { buildAuthorizeUrl, exchangeCodeForTokens, fetchLibraryProfile, revokeServerSession } from '@/lib/auth/api';
 import {
     consumeVerifier,
     generateCodeChallenge,
@@ -214,17 +214,21 @@ export const useAuthStore = create<AuthState>()(
 
             logout: async () => {
                 const token = get().session?.accessToken;
+                const slug = get().user?.tenant_slug
+                    ?? (typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') : null)
+                    ?? '';
                 await revokeServerSession(token);
                 set({ status: 'idle', user: null, session: null, subscriptionInfo: undefined, lastAuthenticatedAt: null });
                 apiClient.setAccessToken(null);
                 apiClient.setTenantInfo(null, null);
+                apiClient.setOutletID(null);
                 if (typeof window !== 'undefined') {
                     try { localStorage.removeItem('tenantId'); } catch { /* no-op */ }
                     try { localStorage.removeItem('tenantSlug'); } catch { /* no-op */ }
                     try { localStorage.removeItem('library-auth-storage'); } catch { /* no-op */ }
                     try { sessionStorage.clear(); } catch { /* no-op */ }
-                    const returnTo = encodeURIComponent(window.location.origin);
-                    window.location.href = buildLogoutUrl(`https://accounts.codevertexitsolutions.com/login?return_to=${returnTo}`);
+                    // Desk/kiosk default: return to the PIN login page (not the SSO accounts page).
+                    window.location.href = slug ? `/${slug}/pin-login` : '/';
                 }
             },
 

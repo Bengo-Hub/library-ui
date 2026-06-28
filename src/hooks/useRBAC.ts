@@ -34,6 +34,18 @@ export function useAssignRole(orgSlug: string) {
   });
 }
 
+export function useBranches(orgSlug: string) {
+  return useQuery({ queryKey: [KEY, 'branches', orgSlug], queryFn: () => rbacApi.listBranches(orgSlug), enabled: !!orgSlug, staleTime: 5 * 60_000 });
+}
+
+export function useAssignBranches(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, branchIds }: { userId: string; branchIds: string[] }) => rbacApi.assignBranches(orgSlug, userId, branchIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'team', orgSlug] }),
+  });
+}
+
 export function useCreateRole(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({

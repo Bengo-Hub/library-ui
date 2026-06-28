@@ -50,11 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => apiClient.setOnLimitReached(null);
     }, []);
 
+    // Unauthenticated users land on the PIN login page by default (the desk/kiosk default),
+    // which itself offers "Sign in with company account (SSO)". Never redirect straight to SSO.
     useEffect(() => {
-        if (status === 'idle' && !pathname?.includes('/auth') && orgSlug) {
-            useAuthStore.getState().redirectToSSO(orgSlug, window.location.href);
+        if (status === 'idle' && !pathname?.includes('/auth') && !pathname?.includes('/pin-login') && orgSlug) {
+            router.replace(`/${orgSlug}/pin-login`);
         }
-    }, [status, pathname, orgSlug]);
+    }, [status, pathname, orgSlug, router]);
 
     useEffect(() => {
         if (!session || isUnauthorizedPage || meLoading) return;
