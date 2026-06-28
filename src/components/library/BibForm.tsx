@@ -75,6 +75,7 @@ export function BibForm({
         pages: r.pages ?? f.pages,
         language: r.language ?? f.language,
         cover_url: r.cover_url ?? f.cover_url,
+        description: r.description || f.description,
         subjects: r.subjects?.length ? r.subjects : f.subjects,
       }));
       if (r.subjects?.length) setSubjectsText(r.subjects.join(', '));

@@ -74,6 +74,7 @@ export interface IsbnLookupResult {
   isbn?: string;
   pages?: number | null;
   cover_url?: string | null;
+  description?: string;
   subjects?: string[];
   language?: string;
 }
