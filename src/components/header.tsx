@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Bell, BookOpen, ChevronDown, ExternalLink, Globe, LogOut, Menu, Search, Settings, ShoppingCart, Tag, User } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
+import { usePermissions } from '@/hooks/usePermissions';
 import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
@@ -38,6 +39,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const session = useAuthStore((state) => state.session);
   const logout = useAuthStore((state) => state.logout);
   const { getServiceTitle } = useBranding();
+  const { can } = usePermissions();
   const [profileOpen, setProfileOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -129,20 +131,23 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <p className="text-[10px] text-muted-foreground truncate font-bold uppercase tracking-widest mt-0.5">{role || 'Librarian'}</p>
                   </div>
 
-                  <div className="h-px bg-border my-2 mx-1" />
-
-                  <div className="grid gap-1">
-                    <Link
-                      href={`/${orgSlug}/settings`}
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                        <Settings className="h-4 w-4" />
+                  {can('library.settings.manage') && (
+                    <>
+                      <div className="h-px bg-border my-2 mx-1" />
+                      <div className="grid gap-1">
+                        <Link
+                          href={`/${orgSlug}/settings`}
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
+                            <Settings className="h-4 w-4" />
+                          </div>
+                          Settings
+                        </Link>
                       </div>
-                      Settings
-                    </Link>
-                  </div>
+                    </>
+                  )}
 
                   <div className="h-px bg-border my-2 mx-1" />
 

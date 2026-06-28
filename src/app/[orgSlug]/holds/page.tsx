@@ -9,6 +9,7 @@ import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
+import { Can } from '@/components/auth/Can';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
 import { BibPicker } from '@/components/library/BibPicker';
@@ -50,9 +51,11 @@ export default function HoldsPage() {
     {
       key: 'actions', header: '', actions: true, align: 'right',
       cell: (h) => (h.status === 'pending' || h.status === 'ready') ? (
-        <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
-          <X className="h-4 w-4" /> Cancel
-        </Button>
+        <Can perm="library.holds.delete">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
+            <X className="h-4 w-4" /> Cancel
+          </Button>
+        </Can>
       ) : null,
     },
   ];
@@ -87,7 +90,7 @@ export default function HoldsPage() {
         title="Holds & Reservations"
         subtitle="Manage the reservation queue"
         icon={<BookMarked className="h-5 w-5" />}
-        actions={<FeatureGate feature="library_holds"><Button className="gap-1.5" onClick={() => setStep('pick-bib')}><Plus className="h-4 w-4" /> Place Hold</Button></FeatureGate>}
+        actions={<Can perm="library.holds.place"><FeatureGate feature="library_holds"><Button className="gap-1.5" onClick={() => setStep('pick-bib')}><Plus className="h-4 w-4" /> Place Hold</Button></FeatureGate></Can>}
       />
 
       <CapsuleTabs

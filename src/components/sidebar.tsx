@@ -32,6 +32,7 @@ import { isPlatformOwner as checkPlatformOwner } from '@/lib/auth/permissions';
 import { useOutletStore } from '@/store/outlet';
 import { useEntitlements } from '@bengo-hub/shared-ui-lib/subscription';
 import { isKnownFeature, requiredPlanLabel } from '@/lib/subscription/feature-catalog';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexitsolutions.com';
 
@@ -46,6 +47,8 @@ interface NavItem {
   href: string;
   /** Subscription feature code — renders a locked upgrade badge if not in the tenant's plan. */
   subFeature?: string;
+  /** Django-style permission required to SEE this item (library.{module}.{action}). */
+  perm?: string;
 }
 
 interface NavGroup {
@@ -157,6 +160,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { outlet, clearOutlet } = useOutletStore();
   const isPlatformOwner = checkPlatformOwner(user);
   const entitlements = useEntitlements();
+  const { can } = usePermissions();
 
   async function handleLogout() {
     clearOutlet();
@@ -173,49 +177,55 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     {
       label: 'Catalog',
       items: [
-        { label: 'Catalog (OPAC)', icon: Library, href: '/catalog', subFeature: 'library_catalog' },
-        { label: 'Cataloging', icon: BookText, href: '/cataloging', subFeature: 'library_catalog' },
-        { label: 'Copies & Holdings', icon: BookCopy, href: '/copies', subFeature: 'library_catalog' },
-        { label: 'eBooks', icon: Tablet, href: '/ebooks', subFeature: 'library_ebooks' },
+        { label: 'Catalog (OPAC)', icon: Library, href: '/catalog', subFeature: 'library_catalog', perm: 'library.catalog.view' },
+        { label: 'Cataloging', icon: BookText, href: '/cataloging', subFeature: 'library_catalog', perm: 'library.catalog.add' },
+        { label: 'Copies & Holdings', icon: BookCopy, href: '/copies', subFeature: 'library_catalog', perm: 'library.copies.view' },
+        { label: 'eBooks', icon: Tablet, href: '/ebooks', subFeature: 'library_ebooks', perm: 'library.ebooks.view' },
       ],
     },
     {
       label: 'Circulation',
       items: [
-        { label: 'Circulation Desk', icon: BookOpen, href: '/circulation', subFeature: 'library_circulation' },
-        { label: 'Self-Checkout', icon: ScanLine, href: '/kiosk', subFeature: 'library_circulation' },
-        { label: 'Holds', icon: BookMarked, href: '/holds', subFeature: 'library_holds' },
-        { label: 'Fines', icon: CircleDollarSign, href: '/fines', subFeature: 'library_fines' },
+        { label: 'Circulation Desk', icon: BookOpen, href: '/circulation', subFeature: 'library_circulation', perm: 'library.circulation.checkout' },
+        { label: 'Self-Checkout', icon: ScanLine, href: '/kiosk', subFeature: 'library_circulation', perm: 'library.circulation.checkout' },
+        { label: 'Holds', icon: BookMarked, href: '/holds', subFeature: 'library_holds', perm: 'library.holds.view' },
+        { label: 'Fines', icon: CircleDollarSign, href: '/fines', subFeature: 'library_fines', perm: 'library.fines.view' },
       ],
     },
     {
       label: 'Patrons',
       items: [
-        { label: 'Members', icon: Users, href: '/members', subFeature: 'library_members' },
-        { label: 'Member Tiers', icon: ListChecks, href: '/members/tiers', subFeature: 'library_members' },
-        { label: 'Loan Policies', icon: ListChecks, href: '/members/policies', subFeature: 'library_members' },
+        { label: 'Members', icon: Users, href: '/members', subFeature: 'library_members', perm: 'library.members.view' },
+        { label: 'Member Tiers', icon: ListChecks, href: '/members/tiers', subFeature: 'library_members', perm: 'library.member_tiers.view' },
+        { label: 'Loan Policies', icon: ListChecks, href: '/members/policies', subFeature: 'library_members', perm: 'library.loan_policies.view' },
       ],
     },
     {
       label: 'Management',
       defaultCollapsed: true,
       items: [
-        { label: 'Stocktake', icon: ClipboardCheck, href: '/stocktake' },
-        { label: 'Branch Transfers', icon: ArrowLeftRight, href: '/transfers' },
-        { label: 'Reports', icon: BarChart3, href: '/reports' },
-        { label: 'Branches', icon: Library, href: '/settings/branches' },
-        { label: 'Team & Roles', icon: Users, href: '/team' },
-        { label: 'Settings', icon: Settings, href: '/settings' },
+        { label: 'Stocktake', icon: ClipboardCheck, href: '/stocktake', perm: 'library.stocktake.view' },
+        { label: 'Branch Transfers', icon: ArrowLeftRight, href: '/transfers', perm: 'library.transfers.view' },
+        { label: 'Reports', icon: BarChart3, href: '/reports', perm: 'library.reports.view' },
+        { label: 'Branches', icon: Library, href: '/settings/branches', perm: 'library.branches.manage' },
+        { label: 'Team & Roles', icon: Users, href: '/team', perm: 'library.team.view' },
+        { label: 'Settings', icon: Settings, href: '/settings', perm: 'library.settings.manage' },
       ],
     },
   ];
+
+  // RBAC: hide nav items the user has no permission for (read-only members see only their
+  // allowed pages). Drop groups that become empty. Admin/superuser/platform bypass via can().
+  const visibleGroups = navGroups
+    .map((g) => ({ ...g, items: g.items.filter((i) => can(i.perm)) }))
+    .filter((g) => g.items.length > 0);
 
   // Collect locked subscription feature codes: a *recognised* feature (in FEATURE_CATALOG) the
   // tenant's plan does not include. Platform owners / exempt tenants never lock (entitlements
   // already reads isExempt). Unknown codes fail-open (visible) so a typo can't hide a real page.
   const lockedFeatures = new Set<string>();
   if (!isPlatformOwner && !entitlements.isExempt && !entitlements.isLoading) {
-    for (const group of navGroups) {
+    for (const group of visibleGroups) {
       for (const item of group.items) {
         if (isKnownFeature(item.subFeature) && !entitlements.features.includes(item.subFeature)) {
           lockedFeatures.add(item.subFeature);
@@ -257,7 +267,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-hide">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <NavGroupSection
             key={group.label}
             group={group}

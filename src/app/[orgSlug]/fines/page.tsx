@@ -19,6 +19,7 @@ import { type Fine, type FineStatus } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney } from '@/lib/format';
 import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
+import { Can } from '@/components/auth/Can';
 
 const STATUS_VARIANT: Record<FineStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   outstanding: 'error', partial: 'warning', paid: 'success', waived: 'outline',
@@ -61,8 +62,8 @@ export default function FinesPage() {
       key: 'actions', header: '', actions: true, align: 'right',
       cell: (f) => (f.status === 'outstanding' || f.status === 'partial') ? (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button>
-          <Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay</Button>
+          <Can perm="library.fines.waive"><Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button></Can>
+          <Can perm="library.fines.pay"><Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay</Button></Can>
         </div>
       ) : null,
     },
@@ -100,7 +101,7 @@ export default function FinesPage() {
         title="Fines & Fees"
         subtitle="Outstanding balances and membership fees"
         icon={<CircleDollarSign className="h-5 w-5" />}
-        actions={<FeatureGate feature="library_fines"><Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button></FeatureGate>}
+        actions={<Can perm="library.membership_fees.add"><FeatureGate feature="library_fines"><Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button></FeatureGate></Can>}
       />
 
       <CapsuleTabs

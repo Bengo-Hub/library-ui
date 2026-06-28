@@ -19,6 +19,7 @@ import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
 import { languageName } from '@/lib/languages';
 import { MemberPicker } from '@/components/library/MemberPicker';
+import { Can } from '@/components/auth/Can';
 
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   available: 'success', on_loan: 'warning', on_hold: 'warning', in_transit: 'default',
@@ -115,18 +116,24 @@ export default function BibDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" className="gap-1.5" onClick={() => setHoldOpen(true)}>
-                  <BookMarked className="h-4 w-4" /> Place Hold
-                </Button>
-                <Link href={`/${orgSlug}/cataloging?id=${bib.id}`}>
-                  <Button variant="outline" className="gap-1.5"><Pencil className="h-4 w-4" /> Edit</Button>
-                </Link>
+                <Can perm="library.holds.place">
+                  <Button variant="outline" className="gap-1.5" onClick={() => setHoldOpen(true)}>
+                    <BookMarked className="h-4 w-4" /> Place Hold
+                  </Button>
+                </Can>
+                <Can perm="library.catalog.change">
+                  <Link href={`/${orgSlug}/cataloging?id=${bib.id}`}>
+                    <Button variant="outline" className="gap-1.5"><Pencil className="h-4 w-4" /> Edit</Button>
+                  </Link>
+                </Can>
                 <a href={catalogApi.marcXmlUrl(orgSlug, bib.id)} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" className="gap-1.5" title="Export MARCXML"><FileDown className="h-4 w-4" /> MARC</Button>
                 </a>
-                <Button variant="destructive" size="icon" onClick={() => setConfirmDelete(true)} aria-label="Delete">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <Can perm="library.catalog.delete">
+                  <Button variant="destructive" size="icon" onClick={() => setConfirmDelete(true)} aria-label="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </Can>
               </div>
             </div>
 

@@ -49,6 +49,19 @@ export function userHasRole(
   return operator === "and" ? matches.every(Boolean) : matches.some(Boolean);
 }
 
+/**
+ * granted resolves a single Django-style permission code (library.{module}.{action}) against the
+ * user's permission set, honoring the wildcard `*` and the rule that `library.{module}.manage`
+ * implies every action on that module (mirrors the backend `act`/`view` any-of gates).
+ */
+function granted(perms: string[], permission: string): boolean {
+  if (perms.includes("*")) return true;
+  if (perms.includes(permission)) return true;
+  const p = permission.split(".");
+  if (p.length === 3 && perms.includes(`${p[0]}.${p[1]}.manage`)) return true;
+  return false;
+}
+
 export function userHasPermission(
   user: UserProfile | null,
   permissions?: Permission[] | null,
@@ -57,7 +70,8 @@ export function userHasPermission(
   if (!permissions?.length) return true;
   if (!user) return false;
   if (hasFullTenantAccess(user)) return true;
-  const matches = permissions.map((permission) => user.permissions.includes(permission));
+  const perms = (user.permissions ?? []) as unknown as string[];
+  const matches = permissions.map((permission) => granted(perms, permission as unknown as string));
   return operator === "and" ? matches.every(Boolean) : matches.some(Boolean);
 }
 

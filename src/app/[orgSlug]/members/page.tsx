@@ -17,6 +17,7 @@ import { type Member, type MemberInput, type MemberStatus } from '@/lib/api/memb
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatMoney } from '@/lib/format';
 import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
+import { Can } from '@/components/auth/Can';
 
 const STATUS_VARIANT: Record<MemberStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   active: 'success', suspended: 'error', expired: 'warning', pending: 'outline',
@@ -61,7 +62,9 @@ export default function MembersPage() {
     {
       key: 'actions', header: '', actions: true, align: 'right',
       cell: (m) => (
-        <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+        <Can perm="library.members.change">
+          <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+        </Can>
       ),
     },
   ];
@@ -92,9 +95,11 @@ export default function MembersPage() {
           <div className="flex items-center gap-2">
             <Link href={`/${orgSlug}/members/tiers`}><Button variant="outline">Tiers</Button></Link>
             <Link href={`/${orgSlug}/members/policies`}><Button variant="outline">Policies</Button></Link>
-            <FeatureGate feature="library_members">
-              <Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> New Member</Button>
-            </FeatureGate>
+            <Can perm="library.members.add">
+              <FeatureGate feature="library_members">
+                <Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> New Member</Button>
+              </FeatureGate>
+            </Can>
           </div>
         }
       />

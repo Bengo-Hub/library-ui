@@ -11,6 +11,7 @@ import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Can } from '@/components/auth/Can';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput } from '@/lib/api/copies';
 import { apiErrorMessage } from '@/lib/api/error-message';
@@ -101,8 +102,8 @@ function CopiesContent() {
       cell: (c) => (
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          <Can perm="library.copies.change"><Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></Can>
+          <Can perm="library.copies.delete"><Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button></Can>
         </div>
       ),
     },
@@ -117,7 +118,7 @@ function CopiesContent() {
         title="Copies & Holdings"
         subtitle={bib?.title}
         icon={<BookCopy className="h-5 w-5" />}
-        actions={<Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> Add Copy</Button>}
+        actions={<Can perm="library.copies.add"><Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> Add Copy</Button></Can>}
       />
 
       <Card>
