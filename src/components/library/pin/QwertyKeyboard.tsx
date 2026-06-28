@@ -19,7 +19,9 @@ export interface QwertyKeyboardProps {
   onEnter: () => void;
   shift: boolean;
   onToggleShift: () => void;
-  onToggleNumeric: () => void;
+  /** When provided, a "?123" key switches to the numeric keypad (small-screen single-keyboard
+   *  mode). Omitted on the large-screen layout where both keyboards are shown at once. */
+  onToggleNumeric?: () => void;
   disabled?: boolean;
 }
 
@@ -71,7 +73,9 @@ export function QwertyKeyboard({ onKey, onBackspace, onEnter, shift, onToggleShi
         <Key label="." disabled={disabled} onPress={() => onKey('.')} className="bg-accent/40" />
       </div>
       <div className="flex gap-1.5">
-        <Key label="?123" disabled={disabled} onPress={onToggleNumeric} className="flex-[1.6] bg-muted text-muted-foreground font-bold" />
+        {onToggleNumeric && (
+          <Key label="?123" disabled={disabled} onPress={onToggleNumeric} className="flex-[1.6] bg-muted text-muted-foreground font-bold" />
+        )}
         <Key label={<span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">Space</span>} disabled={disabled} onPress={() => onKey(' ')} className="flex-1" />
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Building2, ExternalLink, Loader2 } from 'lucide-react';
+import { Building2, ExternalLink, KeyRound, Loader2, UserRound } from 'lucide-react';
 import { pinApi, type PinBranch } from '@/lib/api/pin';
 import { useAuthStore } from '@/store/auth';
 import { useOutletStore } from '@/store/outlet';
@@ -89,6 +89,10 @@ export default function PinLoginPage() {
     setPinDigits((d) => [...d, char]);
   }
 
+  function backspace() { setError(false); setPinDigits((d) => d.slice(0, -1)); }
+  function clear() { setError(false); setPinDigits([]); }
+  function submitCurrent() { if (pinDigits.length > 0) void submitPin(pinDigits.join('')); }
+
   return (
     <div className="relative min-h-dvh flex flex-col bg-background">
       <LoginHero
@@ -131,33 +135,55 @@ export default function PinLoginPage() {
             <SSOLink onClick={() => redirectToSSO(orgSlug, `/${orgSlug}`)} />
           </div>
         ) : (
-          // ── PIN entry step (numeric or QWERTY for alphanumeric PINs) ──
-          <div className={`w-full ${keyboard === 'qwerty' ? 'max-w-2xl' : 'max-w-sm'} rounded-3xl bg-card border border-border shadow-xl shadow-black/5 p-5 sm:p-6`}>
-            <div className="flex flex-col gap-4">
-              {keyboard === 'numeric' ? (
-                <PinKeypad
-                  onDigit={handleDigit}
-                  onBackspace={() => { setError(false); setPinDigits((d) => d.slice(0, -1)); }}
-                  onClear={() => { setError(false); setPinDigits([]); }}
-                  onToggleQwerty={() => setKeyboard('qwerty')}
-                  disabled={submitting}
-                  isSubmitting={submitting}
-                />
-              ) : (
-                <QwertyKeyboard
-                  onKey={handleKey}
-                  onBackspace={() => { setError(false); setPinDigits((d) => d.slice(0, -1)); }}
-                  onEnter={() => pinDigits.length > 0 && submitPin(pinDigits.join(''))}
-                  shift={shift}
-                  onToggleShift={() => setShift((s) => !s)}
-                  onToggleNumeric={() => setKeyboard('numeric')}
-                  disabled={submitting}
-                />
-              )}
-              {isDemo && <p className="text-center text-[11px] text-muted-foreground">Demo desk PIN: <span className="font-mono font-semibold">1234</span></p>}
-              <SSOLink onClick={() => redirectToSSO(orgSlug, `/${orgSlug}`)} />
+          // ── PIN entry step ── two responsive layouts of the SAME handlers (pos-adapted):
+          //  • small (<lg): one active keyboard + ABC/?123 toggle
+          //  • large (lg+): SSO-login card LEFT · QWERTY CENTER · numeric keypad RIGHT (both shown)
+          <>
+            {/* SMALL SCREENS */}
+            <div className="w-full max-w-md lg:hidden rounded-3xl bg-card border border-border shadow-xl shadow-black/5 p-5 sm:p-6">
+              <div className="flex flex-col gap-4">
+                <KbdLabel text={keyboard === 'numeric' ? 'Enter PIN' : 'Enter passcode'} />
+                {keyboard === 'numeric' ? (
+                  <PinKeypad
+                    onDigit={handleDigit} onBackspace={backspace} onClear={clear}
+                    onToggleQwerty={() => setKeyboard('qwerty')} disabled={submitting} isSubmitting={submitting}
+                  />
+                ) : (
+                  <QwertyKeyboard
+                    onKey={handleKey} onBackspace={backspace} onEnter={submitCurrent}
+                    shift={shift} onToggleShift={() => setShift((s) => !s)} onToggleNumeric={() => setKeyboard('numeric')} disabled={submitting}
+                  />
+                )}
+                {isDemo && <DemoHint />}
+                <SSOLink onClick={() => redirectToSSO(orgSlug, `/${orgSlug}`)} />
+              </div>
             </div>
-          </div>
+
+            {/* LARGE SCREENS — 3-zone */}
+            <div className="hidden lg:flex w-full max-w-6xl rounded-3xl bg-card border border-border shadow-xl shadow-black/5 p-6 flex-col gap-4">
+              <div className="flex items-stretch gap-5">
+                <div className="w-44 shrink-0">
+                  <button
+                    onClick={() => redirectToSSO(orgSlug, `/${orgSlug}`)}
+                    className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-2xl py-5 text-white font-bold shadow-md ring-1 ring-inset ring-white/15 active:scale-[0.98] transition-all"
+                    style={{ background: 'linear-gradient(160deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%)' }}
+                  >
+                    <span className="h-12 w-12 rounded-2xl bg-white/20 ring-1 ring-inset ring-white/25 flex items-center justify-center"><UserRound className="h-6 w-6" /></span>
+                    <span className="text-sm">SSO Login</span>
+                  </button>
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-3 rounded-2xl bg-accent/30 border border-border p-4">
+                  <KbdLabel text="Enter passcode" />
+                  <QwertyKeyboard onKey={handleKey} onBackspace={backspace} onEnter={submitCurrent} shift={shift} onToggleShift={() => setShift((s) => !s)} disabled={submitting} />
+                </div>
+                <div className="w-64 shrink-0 flex flex-col gap-3 rounded-2xl bg-accent/30 border border-border p-4">
+                  <KbdLabel text="Enter PIN" />
+                  <PinKeypad onDigit={handleDigit} onBackspace={backspace} onClear={clear} disabled={submitting} isSubmitting={submitting} />
+                </div>
+              </div>
+              {isDemo && <DemoHint />}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -166,8 +192,26 @@ export default function PinLoginPage() {
 
 function SSOLink({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="mt-8 mx-auto flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+    <button onClick={onClick} className="mt-2 mx-auto flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
       <ExternalLink className="h-3.5 w-3.5" /> Sign in with company account (SSO)
     </button>
+  );
+}
+
+function KbdLabel({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 text-muted-foreground">
+      <KeyRound className="h-3.5 w-3.5" />
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">{text}</span>
+    </div>
+  );
+}
+
+function DemoHint() {
+  return (
+    <div className="rounded-xl border border-border bg-accent/30 px-3 py-2 text-center">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Demo desk PIN</span>
+      <span className="ml-2 font-mono text-sm font-bold text-primary">1234</span>
+    </div>
   );
 }
