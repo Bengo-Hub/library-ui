@@ -207,11 +207,24 @@ function KbdLabel({ text }: { text: string }) {
   );
 }
 
+const DEMO_PINS = [
+  { pin: '1111', role: 'Librarian', accent: '#ef4444' },
+  { pin: '2222', role: 'Desk Assistant', accent: '#3b82f6' },
+  { pin: '3333', role: 'Member', accent: '#10b981' },
+];
+
 function DemoHint() {
   return (
-    <div className="rounded-xl border border-border bg-accent/30 px-3 py-2 text-center">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Demo desk PIN</span>
-      <span className="ml-2 font-mono text-sm font-bold text-primary">1234</span>
+    <div className="rounded-2xl border border-border bg-accent/30 p-3">
+      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 text-center">Demo desk PINs</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {DEMO_PINS.map(({ pin, role, accent }) => (
+          <div key={pin} className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1.5" style={{ background: `${accent}14` }}>
+            <span className="font-mono text-sm font-black" style={{ color: accent }}>{pin}</span>
+            <span className="text-[10px] text-muted-foreground text-center leading-tight">{role}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -64,7 +64,9 @@ export function OrgShell({ children }: { children: ReactNode }) {
     }));
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const pathname = usePathname();
-    const isAuthRoute = !!pathname && pathname.includes('/auth/');
+    // The PIN-login page is its own full-screen layout (like pos-ui) — render it standalone,
+    // NOT inside the authenticated app shell (sidebar/header/bottom-nav), same as /auth/* routes.
+    const isAuthRoute = !!pathname && (pathname.includes('/auth/') || pathname.includes('/pin-login'));
 
     if (isAuthRoute) {
         return (
