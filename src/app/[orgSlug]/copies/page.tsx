@@ -7,8 +7,9 @@ import { toast } from 'sonner';
 import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft } from 'lucide-react';
 import { useBib } from '@/hooks/useCatalog';
 import { useBibCopies, useCreateCopy, useUpdateCopy, useDeleteCopy } from '@/hooks/useCopies';
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
+import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput } from '@/lib/api/copies';
@@ -89,6 +90,24 @@ function CopiesContent() {
     );
   }
 
+  const columns: Column<Copy>[] = [
+    { key: 'barcode', header: 'Barcode', primary: true, cell: (c) => <span className="font-mono text-xs">{c.barcode}</span> },
+    { key: 'branch', header: 'Branch', cell: (c) => c.branch_name ?? '—' },
+    { key: 'shelf', header: 'Shelf', cell: (c) => c.shelf_location ?? '—' },
+    { key: 'acquired', header: 'Acquired', cell: (c) => <span className="text-muted-foreground">{formatDate(c.acquisition_date)}</span> },
+    { key: 'status', header: 'Status', cell: (c) => <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>{COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}</Badge> },
+    {
+      key: 'actions', header: '', actions: true, align: 'right',
+      cell: (c) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-5xl mx-auto">
       <Link href={`/${orgSlug}/catalog/${bibId}`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
@@ -102,53 +121,19 @@ function CopiesContent() {
       />
 
       <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : copies.length === 0 ? (
-          <EmptyState
+        <DataTable
+          columns={columns}
+          rows={copies}
+          rowKey={(c) => c.id}
+          loading={isLoading}
+          skeletonRows={4}
+          empty={<EmptyState
             icon={<BookCopy className="h-12 w-12" />}
             title="No copies yet"
             description="Add the first physical copy by scanning its barcode."
             action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> Add Copy</Button>}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Barcode</th>
-                  <th className="px-5 py-3 font-semibold">Branch</th>
-                  <th className="px-5 py-3 font-semibold">Shelf</th>
-                  <th className="px-5 py-3 font-semibold">Acquired</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {copies.map((c) => (
-                  <tr key={c.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3 font-mono text-xs">{c.barcode}</td>
-                    <td className="px-5 py-3">{c.branch_name ?? '—'}</td>
-                    <td className="px-5 py-3">{c.shelf_location ?? '—'}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{formatDate(c.acquisition_date)}</td>
-                    <td className="px-5 py-3">
-                      <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>
-                        {COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          />}
+        />
       </Card>
 
       <CopyFormDialog

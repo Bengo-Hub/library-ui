@@ -2,6 +2,7 @@
 
 import { Header } from '@/components/header';
 import { Sidebar } from '@/components/sidebar';
+import { BottomNav } from '@/components/bottom-nav';
 import { OutletGate } from '@/components/outlet-gate';
 import { PlatformScopeGuard } from '@/components/platform-scope-guard';
 import { AuthProvider } from '@/providers/auth-provider';
@@ -95,11 +96,14 @@ export function OrgShell({ children }: { children: ReactNode }) {
                                 <SubscriptionBanner />
                                 <main className="flex-1 min-h-0 overflow-y-auto bg-accent/5">
                                     <div className="min-h-full flex flex-col">
-                                        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6">{children}</div>
+                                        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-5 sm:py-6">{children}</div>
                                         <Footer />
+                                        {/* Spacer so content/footer clears the mobile bottom tab bar (h-16) + safe area. */}
+                                        <div className="lg:hidden h-16 shrink-0" style={{ marginBottom: 'env(safe-area-inset-bottom)' }} aria-hidden />
                                     </div>
                                 </main>
                             </div>
+                            <BottomNav onMore={() => setSidebarOpen(true)} />
                         </div>
                     </EntitlementsProvider>
                 </BrandingProvider>

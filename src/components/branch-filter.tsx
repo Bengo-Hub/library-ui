@@ -93,7 +93,7 @@ export function BranchFilter({ className }: { className?: string }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors min-w-40"
+        className="flex items-center gap-2 rounded-xl border border-border bg-card px-2.5 sm:px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors min-w-0 max-w-[42vw] sm:min-w-40 sm:max-w-none"
         aria-expanded={open}
         aria-haspopup="listbox"
       >

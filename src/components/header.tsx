@@ -40,6 +40,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { getServiceTitle } = useBranding();
   const [profileOpen, setProfileOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const isAuthenticated = !!user && !!session;
   const name = displayName(user);
   const role = user?.roles?.[0];
@@ -47,11 +48,12 @@ export function Header({ onMenuClick }: HeaderProps) {
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     const q = search.trim();
+    setSearchOpen(false);
     router.push(`/${orgSlug}/catalog${q ? `?q=${encodeURIComponent(q)}` : ''}`);
   }
 
   return (
-    <header className="h-20 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
+    <header className="h-16 sm:h-20 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-8 flex items-center justify-between">
       <div className="flex items-center gap-4 flex-1">
         <button
           type="button"
@@ -78,7 +80,17 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-3">
+      <div className="flex items-center gap-0.5 sm:gap-3">
+        <button
+          type="button"
+          onClick={() => setSearchOpen((v) => !v)}
+          className="md:hidden p-2.5 rounded-xl hover:bg-accent transition-all"
+          aria-label="Search catalog"
+          aria-expanded={searchOpen}
+        >
+          <Search className="h-5 w-5 text-muted-foreground" />
+        </button>
+
         <button className="relative group p-2.5 rounded-xl hover:bg-accent transition-all">
           <Bell className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
           <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-background" />
@@ -175,6 +187,25 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
         )}
       </div>
+
+      {/* Mobile expandable search — slides under the bar so the catalog (OPAC) is reachable on phones. */}
+      {searchOpen && (
+        <form
+          onSubmit={submitSearch}
+          className="md:hidden absolute left-0 right-0 top-full px-3 pb-3 pt-2 bg-background/95 backdrop-blur-md border-b border-border animate-fade-up"
+        >
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search the catalog (OPAC)…"
+              className="w-full h-11 bg-accent/50 border-none rounded-xl pl-10 pr-4 text-sm focus:ring-1 focus:ring-primary/30 outline-none"
+            />
+          </div>
+        </form>
+      )}
     </header>
   );
 }

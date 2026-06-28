@@ -7,8 +7,9 @@ import { toast } from 'sonner';
 import { Users, Plus, Search, Pencil } from 'lucide-react';
 import { useMembers, useCreateMember, useUpdateMember } from '@/hooks/useMembers';
 import { useDebounce } from '@/hooks/useDebounce';
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
+import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
 import { MemberFormDialog } from '@/components/library/MemberFormDialog';
@@ -41,6 +42,29 @@ export default function MembersPage() {
 
   const members = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+
+  const columns: Column<Member>[] = [
+    {
+      key: 'member', header: 'Member', primary: true,
+      cell: (m) => (
+        <>
+          <Link href={`/${orgSlug}/members/${m.id}`} className="font-medium hover:text-primary">{m.full_name ?? `${m.first_name} ${m.last_name}`}</Link>
+          {m.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
+        </>
+      ),
+    },
+    { key: 'no', header: 'No.', mobileLabel: 'Member No.', cell: (m) => <span className="font-mono text-xs">{m.membership_no}</span> },
+    { key: 'tier', header: 'Tier', cell: (m) => m.tier_name ?? '—' },
+    { key: 'loans', header: 'Loans', cell: (m) => m.active_loans ?? 0 },
+    { key: 'fines', header: 'Fines', cell: (m) => (m.outstanding_fines ?? 0) > 0 ? <span className="text-destructive font-medium">{formatMoney(m.outstanding_fines)}</span> : '—' },
+    { key: 'status', header: 'Status', cell: (m) => <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge> },
+    {
+      key: 'actions', header: '', actions: true, align: 'right',
+      cell: (m) => (
+        <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+      ),
+    },
+  ];
 
   async function handleSubmit(input: MemberInput) {
     try {
@@ -94,45 +118,13 @@ export default function MembersPage() {
       />
 
       <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : members.length === 0 ? (
-          <EmptyState icon={<Users className="h-12 w-12" />} title="No members" description={debouncedQ ? 'No members matched your search.' : 'Add your first member.'} action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Member</Button>} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Member</th>
-                  <th className="px-5 py-3 font-semibold">No.</th>
-                  <th className="px-5 py-3 font-semibold">Tier</th>
-                  <th className="px-5 py-3 font-semibold">Loans</th>
-                  <th className="px-5 py-3 font-semibold">Fines</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {members.map((m) => (
-                  <tr key={m.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3">
-                      <Link href={`/${orgSlug}/members/${m.id}`} className="font-medium hover:text-primary">{m.full_name ?? `${m.first_name} ${m.last_name}`}</Link>
-                      {m.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs">{m.membership_no}</td>
-                    <td className="px-5 py-3">{m.tier_name ?? '—'}</td>
-                    <td className="px-5 py-3">{m.active_loans ?? 0}</td>
-                    <td className="px-5 py-3">{(m.outstanding_fines ?? 0) > 0 ? <span className="text-destructive font-medium">{formatMoney(m.outstanding_fines)}</span> : '—'}</td>
-                    <td className="px-5 py-3"><Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge></td>
-                    <td className="px-5 py-3 text-right">
-                      <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          rows={members}
+          rowKey={(m) => m.id}
+          loading={isLoading}
+          empty={<EmptyState icon={<Users className="h-12 w-12" />} title="No members" description={debouncedQ ? 'No members matched your search.' : 'Add your first member.'} action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Member</Button>} />}
+        />
       </Card>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

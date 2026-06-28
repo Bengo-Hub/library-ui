@@ -127,7 +127,7 @@ export default function CirculationPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Action panel */}
         <Card>
-          <div className="p-6 space-y-5">
+          <div className="p-4 sm:p-6 space-y-5">
             {mode === 'checkout' && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">1. Member</p>
@@ -148,7 +148,7 @@ export default function CirculationPage() {
                         value={memberQuery}
                         onChange={(e) => setMemberQuery(e.target.value)}
                         placeholder="Scan member card or search…"
-                        className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+                        className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
                       />
                       <Button variant="outline" className="gap-1.5" onClick={() => setScanTarget('member')}><ScanLine className="h-4 w-4" /> Scan</Button>
                     </div>
@@ -178,7 +178,7 @@ export default function CirculationPage() {
                   onChange={(e) => setCopyBarcode(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') mode === 'checkout' ? doCheckout() : doReturn(); }}
                   placeholder="Scan the copy barcode…"
-                  className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2 text-sm font-mono focus:ring-1 focus:ring-ring focus:outline-none"
+                  className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm font-mono focus:ring-1 focus:ring-ring focus:outline-none"
                 />
                 <Button variant="outline" className="gap-1.5" onClick={() => setScanTarget('copy')}><ScanLine className="h-4 w-4" /> Scan</Button>
               </div>

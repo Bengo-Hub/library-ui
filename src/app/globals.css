@@ -54,6 +54,10 @@
     from { opacity: 0; transform: translateX(12px); }
     to   { opacity: 1; transform: translateX(0); }
   }
+  @keyframes sheet-up {
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -234,6 +238,15 @@ button:focus-visible {
 .animate-fade-up        { animation: fade-up 0.25s ease-out both; }
 .animate-scale-in       { animation: scale-in 0.2s ease-out both; }
 .animate-slide-in-right { animation: slide-in-right 0.2s ease-out both; }
+.animate-sheet-up       { animation: sheet-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-scale-in,
+  .animate-slide-in-right,
+  .animate-sheet-up,
+  .skeleton { animation: none; }
+}
 
 /* Staggered children */
 .stagger-children > *:nth-child(1) { animation-delay: 0ms; }

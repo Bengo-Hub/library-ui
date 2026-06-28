@@ -6,8 +6,9 @@ import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { CircleDollarSign, Plus, Loader2 } from 'lucide-react';
 import { useFines, useWaiveFine, usePayFine, useAssessMembershipFee } from '@/hooks/useFines';
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
+import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -43,6 +44,29 @@ export default function FinesPage() {
 
   const fines = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+
+  const columns: Column<Fine>[] = [
+    {
+      key: 'member', header: 'Member', primary: true,
+      cell: (f) => f.member_id
+        ? <Link href={`/${orgSlug}/members/${f.member_id}`} className="font-medium hover:text-primary">{f.member_name ?? f.membership_no}</Link>
+        : (f.member_name ?? '—'),
+    },
+    { key: 'type', header: 'Type', cell: (f) => <span className="capitalize">{f.type}</span> },
+    { key: 'reason', header: 'Reason', cell: (f) => <span className="text-muted-foreground line-clamp-2 md:truncate md:max-w-56 block">{f.bib_title ?? f.reason ?? '—'}</span> },
+    { key: 'assessed', header: 'Assessed', cell: (f) => <span className="text-muted-foreground">{formatDate(f.assessed_at)}</span> },
+    { key: 'balance', header: 'Balance', cell: (f) => <span className="font-medium">{formatMoney(f.balance ?? f.amount)}</span> },
+    { key: 'status', header: 'Status', cell: (f) => <Badge variant={STATUS_VARIANT[f.status]}>{f.status}</Badge> },
+    {
+      key: 'actions', header: '', actions: true, align: 'right',
+      cell: (f) => (f.status === 'outstanding' || f.status === 'partial') ? (
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button>
+          <Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay</Button>
+        </div>
+      ) : null,
+    },
+  ];
 
   async function handleWaive() {
     if (!toWaive) return;
@@ -93,49 +117,13 @@ export default function FinesPage() {
       />
 
       <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : fines.length === 0 ? (
-          <EmptyState icon={<CircleDollarSign className="h-12 w-12" />} title="No fines" description="There are no fines matching this filter." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Member</th>
-                  <th className="px-5 py-3 font-semibold">Type</th>
-                  <th className="px-5 py-3 font-semibold">Reason</th>
-                  <th className="px-5 py-3 font-semibold">Assessed</th>
-                  <th className="px-5 py-3 font-semibold">Balance</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {fines.map((f) => (
-                  <tr key={f.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3">
-                      {f.member_id ? <Link href={`/${orgSlug}/members/${f.member_id}`} className="font-medium hover:text-primary">{f.member_name ?? f.membership_no}</Link> : (f.member_name ?? '—')}
-                    </td>
-                    <td className="px-5 py-3 capitalize">{f.type}</td>
-                    <td className="px-5 py-3 text-muted-foreground truncate max-w-[14rem]">{f.bib_title ?? f.reason ?? '—'}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{formatDate(f.assessed_at)}</td>
-                    <td className="px-5 py-3 font-medium">{formatMoney(f.balance ?? f.amount)}</td>
-                    <td className="px-5 py-3"><Badge variant={STATUS_VARIANT[f.status]}>{f.status}</Badge></td>
-                    <td className="px-5 py-3 text-right">
-                      {(f.status === 'outstanding' || f.status === 'partial') && (
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button>
-                          <Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay</Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          rows={fines}
+          rowKey={(f) => f.id}
+          loading={isLoading}
+          empty={<EmptyState icon={<CircleDollarSign className="h-12 w-12" />} title="No fines" description="There are no fines matching this filter." />}
+        />
       </Card>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

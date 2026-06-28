@@ -10,7 +10,6 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { CoverThumb } from '@/components/library/CoverThumb';
 import { BIB_FORMATS, type BibInput, type BibRecord, type BibFormat } from '@/lib/api/catalog';
 import { useIsbnLookup, useCollections, useUploadCover } from '@/hooks/useCatalog';
-import { apiErrorMessage } from '@/lib/api/error-message';
 
 const EMPTY: BibInput = {
   title: '', author: '', publisher: '', isbn: '', format: 'book', language: 'en',
@@ -56,8 +55,15 @@ export function BibForm({
     const clean = isbn.replace(/[^0-9Xx]/g, '');
     if (!clean) return;
     set('isbn', clean);
+    // Non-blocking by design: fields stay editable while this runs, and a miss/failure never
+    // stops the librarian from keying details manually (see backend's short, fail-soft lookup).
     try {
       const r = await isbnLookup.mutateAsync(clean);
+      const found = !!(r.title || r.authors?.length || r.author || r.publisher || r.cover_url);
+      if (!found) {
+        toast.info('No match for that ISBN — enter the details manually.');
+        return;
+      }
       setForm((f) => ({
         ...f,
         isbn: r.isbn ?? clean,
@@ -74,8 +80,9 @@ export function BibForm({
       if (r.subjects?.length) setSubjectsText(r.subjects.join(', '));
       if (r.cover_url) setCoverPreview(r.cover_url);
       toast.success('Details auto-filled from ISBN');
-    } catch (e) {
-      toast.error(await apiErrorMessage(e, 'No match for that ISBN'));
+    } catch {
+      // Soft-fail: keep whatever was typed, just let the user proceed manually.
+      toast.info('Lookup unavailable — enter the details manually.');
     }
   }
 
@@ -97,21 +104,29 @@ export function BibForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* ISBN scan row */}
       <div className="rounded-2xl border border-border bg-accent/20 p-4">
-        <Field label="ISBN" hint="Scan or type the ISBN to auto-fill title, author, publisher and cover.">
-          <div className="flex gap-2">
-            <input
-              value={form.isbn ?? ''}
-              onChange={(e) => set('isbn', e.target.value)}
-              onBlur={(e) => e.target.value && runIsbnLookup(e.target.value)}
-              placeholder="978…"
-              className="flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
-            />
-            <Button type="button" variant="outline" className="gap-1.5" onClick={() => setScanOpen(true)}>
-              <ScanLine className="h-4 w-4" /> Scan
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => form.isbn && runIsbnLookup(form.isbn)} disabled={isbnLookup.isPending}>
-              {isbnLookup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Lookup'}
-            </Button>
+        <Field label="ISBN" hint="Scan or type the ISBN to auto-fill title, author, publisher and cover. You can always edit or type everything manually.">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <input
+                value={form.isbn ?? ''}
+                onChange={(e) => set('isbn', e.target.value)}
+                onBlur={(e) => e.target.value && runIsbnLookup(e.target.value)}
+                inputMode="numeric"
+                placeholder="978…"
+                className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+              />
+              {isbnLookup.isPending && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="flex-1 sm:flex-none gap-1.5" onClick={() => setScanOpen(true)}>
+                <ScanLine className="h-4 w-4" /> Scan
+              </Button>
+              <Button type="button" variant="secondary" className="flex-1 sm:flex-none" onClick={() => form.isbn && runIsbnLookup(form.isbn)} disabled={isbnLookup.isPending}>
+                {isbnLookup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Lookup'}
+              </Button>
+            </div>
           </div>
         </Field>
       </div>
@@ -185,7 +200,7 @@ export function BibForm({
       </div>
 
       <div className="flex justify-end gap-3 border-t border-border pt-4">
-        <Button type="submit" disabled={saving} className="gap-1.5">
+        <Button type="submit" disabled={saving} className="gap-1.5 w-full sm:w-auto">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {initial ? 'Save changes' : 'Create title'}
         </Button>

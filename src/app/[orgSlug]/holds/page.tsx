@@ -5,8 +5,9 @@ import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { BookMarked, Plus, X } from 'lucide-react';
 import { useHolds, usePlaceHold, useCancelHold } from '@/hooks/useHolds';
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
+import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
+import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Pagination } from '@/components/ui/pagination';
@@ -39,6 +40,22 @@ export default function HoldsPage() {
 
   const holds = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+
+  const columns: Column<Hold>[] = [
+    { key: 'title', header: 'Title', primary: true, cell: (h) => <span className="font-medium">{h.bib_title ?? '—'}</span> },
+    { key: 'member', header: 'Member', cell: (h) => h.member_name ?? h.membership_no ?? '—' },
+    { key: 'queue', header: 'Queue', cell: (h) => h.queue_position != null ? `#${h.queue_position}` : '—' },
+    { key: 'placed', header: 'Placed', cell: (h) => <span className="text-muted-foreground">{formatDate(h.placed_at)}</span> },
+    { key: 'status', header: 'Status', cell: (h) => <Badge variant={STATUS_VARIANT[h.status]}>{h.status}</Badge> },
+    {
+      key: 'actions', header: '', actions: true, align: 'right',
+      cell: (h) => (h.status === 'pending' || h.status === 'ready') ? (
+        <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
+          <X className="h-4 w-4" /> Cancel
+        </Button>
+      ) : null,
+    },
+  ];
 
   async function completePlace(memberId: string) {
     if (!pendingBib) return;
@@ -87,44 +104,14 @@ export default function HoldsPage() {
       />
 
       <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : holds.length === 0 ? (
-          <EmptyState icon={<BookMarked className="h-12 w-12" />} title="No holds" description="There are no reservations matching this filter." />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Title</th>
-                  <th className="px-5 py-3 font-semibold">Member</th>
-                  <th className="px-5 py-3 font-semibold">Queue</th>
-                  <th className="px-5 py-3 font-semibold">Placed</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {holds.map((h) => (
-                  <tr key={h.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3 font-medium">{h.bib_title ?? '—'}</td>
-                    <td className="px-5 py-3">{h.member_name ?? h.membership_no ?? '—'}</td>
-                    <td className="px-5 py-3">{h.queue_position != null ? `#${h.queue_position}` : '—'}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{formatDate(h.placed_at)}</td>
-                    <td className="px-5 py-3"><Badge variant={STATUS_VARIANT[h.status]}>{h.status}</Badge></td>
-                    <td className="px-5 py-3 text-right">
-                      {(h.status === 'pending' || h.status === 'ready') && (
-                        <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
-                          <X className="h-4 w-4" /> Cancel
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          rows={holds}
+          rowKey={(h) => h.id}
+          loading={isLoading}
+          skeletonRows={5}
+          empty={<EmptyState icon={<BookMarked className="h-12 w-12" />} title="No holds" description="There are no reservations matching this filter." />}
+        />
       </Card>
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
