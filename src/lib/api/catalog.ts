@@ -34,6 +34,9 @@ export interface BibRecord {
   collection_name?: string;
   description?: string;
   cover_url?: string | null;
+  cover_back_url?: string | null;
+  publication_place?: string;
+  other_isbns?: string[];
   pages?: number | null;
   // availability summary enriched by library-api
   total_copies?: number;
@@ -61,6 +64,9 @@ export interface BibInput {
   collection_id?: string;
   description?: string;
   cover_url?: string | null;
+  cover_back_url?: string | null;
+  publication_place?: string;
+  other_isbns?: string[];
   pages?: number | null;
 }
 
@@ -83,6 +89,21 @@ export interface NamedEntity {
   id: string;
   name: string;
   count?: number;
+}
+
+export interface LibraryCollection {
+  id: string;
+  name: string;
+  code?: string;
+  is_reference_only?: boolean;
+  /** true = shared platform default (read-only for tenants); false/undefined = tenant custom. */
+  is_global?: boolean;
+}
+
+export interface CollectionInput {
+  name: string;
+  code?: string;
+  is_reference_only?: boolean;
 }
 
 export interface BibListParams {
@@ -131,7 +152,11 @@ function toBibPayload(input: Partial<BibInput>): Record<string, unknown> {
   put('lc_call_number', input.call_number);
   put('summary', input.description);
   put('cover_image_url', input.cover_url);
+  put('cover_back_image_url', input.cover_back_url);
+  put('publication_place', input.publication_place);
   put('collection_id', input.collection_id);
+  if (input.subjects?.length) payload.subjects = input.subjects;
+  if (input.other_isbns?.length) payload.other_isbns = input.other_isbns;
   if (input.publication_year != null) payload.publication_year = input.publication_year;
   if (input.pages != null) payload.page_count = input.pages;
   if (input.format) payload.format = FORMAT_TO_API[input.format] ?? 'PHYSICAL';
@@ -152,6 +177,10 @@ function fromBibRecord(raw: BibRecord | Record<string, unknown> | null | undefin
     call_number: r.call_number ?? r.lc_call_number ?? undefined,
     description: r.description ?? r.summary ?? undefined,
     cover_url: r.cover_url ?? r.cover_image_url ?? undefined,
+    cover_back_url: r.cover_back_url ?? r.cover_back_image_url ?? undefined,
+    publication_place: r.publication_place ?? undefined,
+    subjects: Array.isArray(r.subjects) ? r.subjects : undefined,
+    other_isbns: Array.isArray(r.other_isbns) ? r.other_isbns : undefined,
     pages: r.pages ?? r.page_count ?? undefined,
     format: FORMAT_FROM_API[r.format] ?? (r.format as BibFormat) ?? 'book',
   } as BibRecord;
@@ -200,10 +229,10 @@ export const catalogApi = {
   isbnLookup: (orgSlug: string, isbn: string) =>
     apiClient.get<IsbnLookupResult>(`${libBase(orgSlug)}/catalog/isbn/${encodeURIComponent(isbn)}`),
 
-  uploadCover: (orgSlug: string, id: string, file: File): Promise<{ cover_url: string }> => {
+  uploadCover: (orgSlug: string, id: string, file: File, side: 'front' | 'back' = 'front'): Promise<{ cover_url: string; side: string }> => {
     const form = new FormData();
     form.append('file', file);
-    return apiClient.post<{ cover_url: string }>(`${libBase(orgSlug)}/catalog/bibs/${id}/cover`, form);
+    return apiClient.post<{ cover_url: string; side: string }>(`${libBase(orgSlug)}/catalog/bibs/${id}/cover?side=${side}`, form);
   },
 
   // Reference lists
@@ -219,10 +248,14 @@ export const catalogApi = {
     const res = await apiClient.get<{ data?: NamedEntity[] } | NamedEntity[]>(`${libBase(orgSlug)}/catalog/subjects`);
     return Array.isArray(res) ? res : (res.data ?? []);
   },
-  listCollections: async (orgSlug: string): Promise<NamedEntity[]> => {
-    const res = await apiClient.get<{ data?: NamedEntity[] } | NamedEntity[]>(`${libBase(orgSlug)}/catalog/collections`);
+  listCollections: async (orgSlug: string): Promise<LibraryCollection[]> => {
+    const res = await apiClient.get<{ data?: LibraryCollection[] } | LibraryCollection[]>(`${libBase(orgSlug)}/catalog/collections`);
     return Array.isArray(res) ? res : (res.data ?? []);
   },
-  createCollection: (orgSlug: string, name: string) =>
-    apiClient.post<NamedEntity>(`${libBase(orgSlug)}/catalog/collections`, { name }),
+  createCollection: (orgSlug: string, input: CollectionInput) =>
+    apiClient.post<LibraryCollection>(`${libBase(orgSlug)}/catalog/collections`, input),
+  updateCollection: (orgSlug: string, id: string, input: CollectionInput) =>
+    apiClient.put<LibraryCollection>(`${libBase(orgSlug)}/catalog/collections/${id}`, input),
+  deleteCollection: (orgSlug: string, id: string) =>
+    apiClient.delete<void>(`${libBase(orgSlug)}/catalog/collections/${id}`),
 };

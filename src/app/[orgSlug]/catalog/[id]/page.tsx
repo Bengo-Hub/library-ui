@@ -17,6 +17,7 @@ import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
 import { COPY_STATUSES } from '@/lib/api/copies';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
+import { languageName } from '@/lib/languages';
 import { MemberPicker } from '@/components/library/MemberPicker';
 
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
@@ -76,11 +77,13 @@ export default function BibDetailPage() {
   const meta: { label: string; value?: string | number | null }[] = [
     { label: 'Author', value: bib.authors?.join(', ') || bib.author },
     { label: 'Publisher', value: bib.publisher },
+    { label: 'Place', value: bib.publication_place },
     { label: 'Year', value: bib.publication_year },
     { label: 'Edition', value: bib.edition },
     { label: 'ISBN', value: bib.isbn },
+    { label: 'Other ISBN', value: bib.other_isbns?.join(', ') },
     { label: 'ISSN', value: bib.issn },
-    { label: 'Language', value: bib.language },
+    { label: 'Language', value: languageName(bib.language) },
     { label: 'Dewey', value: bib.dewey },
     { label: 'Call number', value: bib.call_number },
     { label: 'Collection', value: bib.collection_name },
@@ -95,7 +98,12 @@ export default function BibDetailPage() {
 
       <Card>
         <div className="p-6 flex flex-col sm:flex-row gap-6">
-          <CoverThumb url={bib.cover_url} title={bib.title} className="w-40 shrink-0 aspect-[3/4] mx-auto sm:mx-0" />
+          <div className="shrink-0 mx-auto sm:mx-0 space-y-2">
+            <CoverThumb url={bib.cover_url} title={bib.title} className="w-40 aspect-[3/4]" />
+            {bib.cover_back_url && (
+              <CoverThumb url={bib.cover_back_url} title={`${bib.title} (back)`} className="w-40 aspect-[3/4] opacity-90" />
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">

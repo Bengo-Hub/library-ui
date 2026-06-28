@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { keepPreviousData } from '@tanstack/react-query';
-import { catalogApi, type BibInput, type BibListParams } from '@/lib/api/catalog';
+import { catalogApi, type BibInput, type BibListParams, type CollectionInput } from '@/lib/api/catalog';
 
 const KEY = 'catalog';
 
@@ -66,10 +66,35 @@ export function useCollections(orgSlug: string) {
   });
 }
 
+export function useCreateCollection(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CollectionInput) => catalogApi.createCollection(orgSlug, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'collections', orgSlug] }),
+  });
+}
+
+export function useUpdateCollection(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: CollectionInput }) => catalogApi.updateCollection(orgSlug, id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'collections', orgSlug] }),
+  });
+}
+
+export function useDeleteCollection(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => catalogApi.deleteCollection(orgSlug, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'collections', orgSlug] }),
+  });
+}
+
 export function useUploadCover(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: string; file: File }) => catalogApi.uploadCover(orgSlug, id, file),
+    mutationFn: ({ id, file, side = 'front' }: { id: string; file: File; side?: 'front' | 'back' }) =>
+      catalogApi.uploadCover(orgSlug, id, file, side),
     onSuccess: (_r, { id }) => qc.invalidateQueries({ queryKey: [KEY, 'bib', orgSlug, id] }),
   });
 }

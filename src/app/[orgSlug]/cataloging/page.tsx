@@ -26,7 +26,7 @@ function CatalogingContent() {
 
   const saving = createBib.isPending || updateBib.isPending || uploadCover.isPending;
 
-  async function handleSubmit(data: BibInput, coverFile?: File) {
+  async function handleSubmit(data: BibInput, covers?: { front?: File; back?: File }) {
     try {
       let bibId = editId;
       if (editId) {
@@ -37,8 +37,11 @@ function CatalogingContent() {
         bibId = created.id;
         toast.success('Title created');
       }
-      if (coverFile && bibId) {
-        await uploadCover.mutateAsync({ id: bibId, file: coverFile });
+      if (bibId && covers?.front) {
+        await uploadCover.mutateAsync({ id: bibId, file: covers.front, side: 'front' });
+      }
+      if (bibId && covers?.back) {
+        await uploadCover.mutateAsync({ id: bibId, file: covers.back, side: 'back' });
       }
       router.push(`/${orgSlug}/catalog/${bibId}`);
     } catch (e) {
