@@ -1,10 +1,30 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useAuthStore } from "@/store/auth";
 import type { SubscriptionInfo } from "@/lib/auth/subscription";
 import { fetchSubscriptionInfo } from "@/lib/auth/subscription";
 import { useSubscriptionStore } from "@/store/subscription";
+import type { SubscriptionEntitlements } from "@bengo-hub/shared-ui-lib/subscription";
+
+/**
+ * Decode the claims payload of a JWT client-side (no signature verification — purely to read
+ * the tenant subscription claims the SSO/PIN token carries). Returns an empty object on any
+ * malformed token so callers can safely spread it.
+ */
+function decodeJwtClaims(token: string | null | undefined): Record<string, unknown> {
+  if (!token) return {};
+  try {
+    const part = token.split(".")[1];
+    if (!part) return {};
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const json = typeof atob === "function" ? atob(padded) : Buffer.from(padded, "base64").toString("binary");
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
 
 export function useSubscription() {
   const session = useAuthStore((s) => s.session);
@@ -92,4 +112,69 @@ export function useSubscription() {
     gracePeriodEndsAt: subStore.gracePeriodEndsAt,
     store: subStore,
   };
+}
+
+/**
+ * useSubscriptionEntitlements produces the store-agnostic SubscriptionEntitlements snapshot
+ * the shared `<SubscriptionProvider>` consumes (and `useFeature` / `useLimit` / `<FeatureGate>`
+ * read from). Wrap the authenticated app shell with the provider, feeding it this value.
+ *
+ * Features/limits are sourced (in priority order) from:
+ *   1. the access-token JWT claims (`subscription_features`, `tier_limits`/`subscription_limits`)
+ *      — the authoritative tenant entitlements the SSO/PIN token carries;
+ *   2. the lazily-fetched subscriptionInfo (pricing-api proxy);
+ *   3. the offline-hydrated subscription store.
+ *
+ * `isExempt` mirrors the backend IsGatingExempt funnel: platform owner OR demo OR
+ * billing_mode === 'service_charge'. When exempt, the shared provider reads every feature as
+ * enabled and every limit as Infinity, so the UI never hides a control the backend allows.
+ */
+export function useSubscriptionEntitlements(): SubscriptionEntitlements {
+  const session = useAuthStore((s) => s.session);
+  const user = useAuthStore((s) => s.user);
+  const subscriptionInfo = useAuthStore((s) => s.subscriptionInfo) as SubscriptionInfo | null | undefined;
+  const storeFeatures = useSubscriptionStore((s) => s.features);
+  const storeLimits = useSubscriptionStore((s) => s.limits);
+  const storeStatus = useSubscriptionStore((s) => s.status);
+  const storeHydrated = useSubscriptionStore((s) => s.hydrated);
+
+  const accessToken = session?.accessToken;
+  const claims = useMemo(() => decodeJwtClaims(accessToken), [accessToken]);
+
+  return useMemo<SubscriptionEntitlements>(() => {
+    const tenantClaims = (claims.tenant as Record<string, unknown> | undefined) ?? claims;
+
+    const tenantSlug = (user?.tenant_slug as string | undefined) ?? (tenantClaims.tenant_slug as string | undefined);
+    const isPlatformOwner =
+      !!(user as { isPlatformOwner?: boolean } | null)?.isPlatformOwner ||
+      tenantClaims.is_platform_owner === true ||
+      tenantSlug === "codevertex";
+    const isDemo = tenantClaims.is_demo === true || tenantSlug === "codevertex-demo";
+    const isServiceCharge = tenantClaims.billing_mode === "service_charge";
+    const isExempt = isPlatformOwner || isDemo || isServiceCharge;
+
+    // Features: JWT claim → fetched info → offline store.
+    const claimFeatures = tenantClaims.subscription_features;
+    const features: string[] = Array.isArray(claimFeatures)
+      ? (claimFeatures as string[])
+      : (subscriptionInfo?.features ?? storeFeatures ?? []);
+
+    // Limits: JWT claim (tier_limits or subscription_limits) → fetched info → offline store.
+    const claimLimits = (tenantClaims.tier_limits ?? tenantClaims.subscription_limits) as
+      | Record<string, number>
+      | undefined;
+    const limits: Record<string, number> =
+      claimLimits ?? subscriptionInfo?.limits ?? storeLimits ?? {};
+
+    const status =
+      (tenantClaims.subscription_status as string | undefined)?.toLowerCase() ??
+      subscriptionInfo?.status ??
+      storeStatus ??
+      null;
+
+    // Loading until either entitlements have resolved from the proxy or the offline store hydrated.
+    const isLoading = subscriptionInfo === undefined && !storeHydrated && !isExempt;
+
+    return { features, limits, isExempt, status, isLoading };
+  }, [claims, user, subscriptionInfo, storeFeatures, storeLimits, storeStatus, storeHydrated]);
 }

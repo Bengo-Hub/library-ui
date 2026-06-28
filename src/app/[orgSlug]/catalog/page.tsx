@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
 import { CoverThumb } from '@/components/library/CoverThumb';
+import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
 
 const PAGE_SIZE = 18;
 
@@ -51,9 +52,11 @@ function CatalogContent() {
         subtitle="Public access catalog (OPAC)"
         icon={<Library className="h-5 w-5" />}
         actions={
-          <Link href={`/${orgSlug}/cataloging`}>
-            <Button className="gap-1.5"><Plus className="h-4 w-4" /> Add Title</Button>
-          </Link>
+          <FeatureGate feature="library_catalog">
+            <Link href={`/${orgSlug}/cataloging`}>
+              <Button className="gap-1.5"><Plus className="h-4 w-4" /> Add Title</Button>
+            </Link>
+          </FeatureGate>
         }
       />
 

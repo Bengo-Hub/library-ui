@@ -16,6 +16,7 @@ import { Field, Select } from '@/components/ui/form';
 import { CoverThumb } from '@/components/library/CoverThumb';
 import { type EbookFormat } from '@/lib/api/ebooks';
 import { apiErrorMessage } from '@/lib/api/error-message';
+import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
 
 const PAGE_SIZE = 18;
 
@@ -66,7 +67,7 @@ export default function EbooksPage() {
         title="eBooks"
         subtitle="Digital lending shelf"
         icon={<Tablet className="h-5 w-5" />}
-        actions={<Button className="gap-1.5" onClick={() => setUploadOpen(true)}><Plus className="h-4 w-4" /> Upload eBook</Button>}
+        actions={<FeatureGate feature="library_ebooks"><Button className="gap-1.5" onClick={() => setUploadOpen(true)}><Plus className="h-4 w-4" /> Upload eBook</Button></FeatureGate>}
       />
 
       <div className="relative mb-4">
@@ -86,7 +87,7 @@ export default function EbooksPage() {
           {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
         </div>
       ) : ebooks.length === 0 ? (
-        <EmptyState icon={<Tablet className="h-12 w-12" />} title="No eBooks" description="Upload your first digital title for lending." action={<Button className="gap-1.5" onClick={() => setUploadOpen(true)}><Plus className="h-4 w-4" /> Upload eBook</Button>} />
+        <EmptyState icon={<Tablet className="h-12 w-12" />} title="No eBooks" description="Upload your first digital title for lending." action={<FeatureGate feature="library_ebooks"><Button className="gap-1.5" onClick={() => setUploadOpen(true)}><Plus className="h-4 w-4" /> Upload eBook</Button></FeatureGate>} />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           {ebooks.map((e) => (

@@ -17,6 +17,7 @@ import { MemberPicker } from '@/components/library/MemberPicker';
 import { type Fine, type FineStatus } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney } from '@/lib/format';
+import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
 
 const STATUS_VARIANT: Record<FineStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   outstanding: 'error', partial: 'warning', paid: 'success', waived: 'outline',
@@ -75,7 +76,7 @@ export default function FinesPage() {
         title="Fines & Fees"
         subtitle="Outstanding balances and membership fees"
         icon={<CircleDollarSign className="h-5 w-5" />}
-        actions={<Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button>}
+        actions={<FeatureGate feature="library_fines"><Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button></FeatureGate>}
       />
 
       <CapsuleTabs

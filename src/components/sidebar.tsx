@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Library,
   ListChecks,
+  Lock,
   LogOut,
   ScanLine,
   Settings,
@@ -29,6 +30,10 @@ import { useBranding } from '@/providers/branding-provider';
 import { useAuthStore } from '@/store/auth';
 import { isPlatformOwner as checkPlatformOwner } from '@/lib/auth/permissions';
 import { useOutletStore } from '@/store/outlet';
+import { useEntitlements } from '@bengo-hub/shared-ui-lib/subscription';
+import { isKnownFeature, requiredPlanLabel } from '@/lib/subscription/feature-catalog';
+
+const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexitsolutions.com';
 
 interface SidebarProps {
   open?: boolean;
@@ -39,6 +44,8 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   href: string;
+  /** Subscription feature code — renders a locked upgrade badge if not in the tenant's plan. */
+  subFeature?: string;
 }
 
 interface NavGroup {
@@ -47,11 +54,35 @@ interface NavGroup {
   items: NavItem[];
 }
 
-function NavLink({ item, orgSlug, onClose }: { item: NavItem; orgSlug: string; onClose?: () => void }) {
+function NavLink({ item, orgSlug, onClose, locked, subPlan }: {
+  item: NavItem;
+  orgSlug: string;
+  onClose?: () => void;
+  locked?: boolean;
+  subPlan?: string;
+}) {
   const pathname = usePathname();
   const href = `/${orgSlug}${item.href}`;
   const active = item.href === '' ? pathname === `/${orgSlug}` : pathname.startsWith(href);
   const Icon = item.icon;
+
+  if (locked) {
+    return (
+      <a
+        href={`${SUBSCRIBE_URL}/plans?service=library`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm text-sidebar-foreground/35 hover:text-sidebar-foreground/55 hover:bg-sidebar-foreground/5 font-medium"
+      >
+        <Icon className="h-4.5 w-4.5 shrink-0 opacity-50" />
+        <span className="truncate flex-1">{item.label}</span>
+        <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-500 border border-amber-500/20 shrink-0">
+          <Lock className="h-2.5 w-2.5" />
+          {subPlan ?? 'Pro'}
+        </span>
+      </a>
+    );
+  }
 
   return (
     <Link
@@ -71,9 +102,9 @@ function NavLink({ item, orgSlug, onClose }: { item: NavItem; orgSlug: string; o
 }
 
 function NavGroupSection({
-  group, orgSlug, onClose, initialOpen,
+  group, orgSlug, onClose, initialOpen, lockedFeatures,
 }: {
-  group: NavGroup; orgSlug: string; onClose?: () => void; initialOpen: boolean;
+  group: NavGroup; orgSlug: string; onClose?: () => void; initialOpen: boolean; lockedFeatures: Set<string>;
 }) {
   const [open, setOpen] = useState(initialOpen);
 
@@ -97,9 +128,19 @@ function NavGroupSection({
       </button>
       {open && (
         <div className="space-y-0.5">
-          {group.items.map((item) => (
-            <NavLink key={item.href + item.label} item={item} orgSlug={orgSlug} onClose={onClose} />
-          ))}
+          {group.items.map((item) => {
+            const locked = !!item.subFeature && lockedFeatures.has(item.subFeature);
+            return (
+              <NavLink
+                key={item.href + item.label}
+                item={item}
+                orgSlug={orgSlug}
+                onClose={onClose}
+                locked={locked}
+                subPlan={requiredPlanLabel(item.subFeature)}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -115,6 +156,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const { outlet, clearOutlet } = useOutletStore();
   const isPlatformOwner = checkPlatformOwner(user);
+  const entitlements = useEntitlements();
 
   async function handleLogout() {
     clearOutlet();
@@ -131,27 +173,27 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     {
       label: 'Catalog',
       items: [
-        { label: 'Catalog (OPAC)', icon: Library, href: '/catalog' },
-        { label: 'Cataloging', icon: BookText, href: '/cataloging' },
-        { label: 'Copies & Holdings', icon: BookCopy, href: '/copies' },
-        { label: 'eBooks', icon: Tablet, href: '/ebooks' },
+        { label: 'Catalog (OPAC)', icon: Library, href: '/catalog', subFeature: 'library_catalog' },
+        { label: 'Cataloging', icon: BookText, href: '/cataloging', subFeature: 'library_catalog' },
+        { label: 'Copies & Holdings', icon: BookCopy, href: '/copies', subFeature: 'library_catalog' },
+        { label: 'eBooks', icon: Tablet, href: '/ebooks', subFeature: 'library_ebooks' },
       ],
     },
     {
       label: 'Circulation',
       items: [
-        { label: 'Circulation Desk', icon: BookOpen, href: '/circulation' },
-        { label: 'Self-Checkout', icon: ScanLine, href: '/kiosk' },
-        { label: 'Holds', icon: BookMarked, href: '/holds' },
-        { label: 'Fines', icon: CircleDollarSign, href: '/fines' },
+        { label: 'Circulation Desk', icon: BookOpen, href: '/circulation', subFeature: 'library_circulation' },
+        { label: 'Self-Checkout', icon: ScanLine, href: '/kiosk', subFeature: 'library_circulation' },
+        { label: 'Holds', icon: BookMarked, href: '/holds', subFeature: 'library_holds' },
+        { label: 'Fines', icon: CircleDollarSign, href: '/fines', subFeature: 'library_fines' },
       ],
     },
     {
       label: 'Patrons',
       items: [
-        { label: 'Members', icon: Users, href: '/members' },
-        { label: 'Member Tiers', icon: ListChecks, href: '/members/tiers' },
-        { label: 'Loan Policies', icon: ListChecks, href: '/members/policies' },
+        { label: 'Members', icon: Users, href: '/members', subFeature: 'library_members' },
+        { label: 'Member Tiers', icon: ListChecks, href: '/members/tiers', subFeature: 'library_members' },
+        { label: 'Loan Policies', icon: ListChecks, href: '/members/policies', subFeature: 'library_members' },
       ],
     },
     {
@@ -167,6 +209,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       ],
     },
   ];
+
+  // Collect locked subscription feature codes: a *recognised* feature (in FEATURE_CATALOG) the
+  // tenant's plan does not include. Platform owners / exempt tenants never lock (entitlements
+  // already reads isExempt). Unknown codes fail-open (visible) so a typo can't hide a real page.
+  const lockedFeatures = new Set<string>();
+  if (!isPlatformOwner && !entitlements.isExempt && !entitlements.isLoading) {
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        if (isKnownFeature(item.subFeature) && !entitlements.features.includes(item.subFeature)) {
+          lockedFeatures.add(item.subFeature);
+        }
+      }
+    }
+  }
 
   function isGroupInitiallyOpen(group: NavGroup): boolean {
     if (!group.defaultCollapsed) return true;
@@ -208,6 +264,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             orgSlug={orgSlug}
             onClose={onClose}
             initialOpen={isGroupInitiallyOpen(group)}
+            lockedFeatures={lockedFeatures}
           />
         ))}
 

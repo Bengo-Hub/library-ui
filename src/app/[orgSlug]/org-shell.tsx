@@ -13,6 +13,18 @@ import { Footer } from '@/components/footer';
 import { SubscriptionBanner } from '@/components/subscription/subscription-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 import { PWARegistration } from '@/components/pwa-registration';
+import { SubscriptionProvider } from '@bengo-hub/shared-ui-lib/subscription';
+import { useSubscriptionEntitlements } from '@/hooks/use-subscription';
+
+/**
+ * Feeds the tenant's entitlement snapshot (decoded from auth claims / fetched plan) into the
+ * shared SubscriptionProvider so `useFeature` / `useLimit` / `<FeatureGate>` work anywhere in
+ * the authenticated shell. Lives below AuthProvider so the access token is available.
+ */
+function EntitlementsProvider({ children }: { children: ReactNode }) {
+    const entitlements = useSubscriptionEntitlements();
+    return <SubscriptionProvider value={entitlements}>{children}</SubscriptionProvider>;
+}
 
 /**
  * Client-side belt-and-suspenders for the tenant manifest link. The authoritative link is
@@ -70,24 +82,26 @@ export function OrgShell({ children }: { children: ReactNode }) {
         <QueryClientProvider client={queryClient}>
             <AuthProvider>
                 <BrandingProvider>
-                    <ManifestInjector />
-                    <PlatformScopeGuard />
-                    <OutletGate />
-                    <PWAUpdateBanner />
-                    <PWARegistration />
-                    <div className="fixed inset-0 flex overflow-hidden bg-background">
-                        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-                        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                            <Header onMenuClick={() => setSidebarOpen(true)} />
-                            <SubscriptionBanner />
-                            <main className="flex-1 min-h-0 overflow-y-auto bg-accent/5">
-                                <div className="min-h-full flex flex-col">
-                                    <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6">{children}</div>
-                                    <Footer />
-                                </div>
-                            </main>
+                    <EntitlementsProvider>
+                        <ManifestInjector />
+                        <PlatformScopeGuard />
+                        <OutletGate />
+                        <PWAUpdateBanner />
+                        <PWARegistration />
+                        <div className="fixed inset-0 flex overflow-hidden bg-background">
+                            <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+                            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                                <Header onMenuClick={() => setSidebarOpen(true)} />
+                                <SubscriptionBanner />
+                                <main className="flex-1 min-h-0 overflow-y-auto bg-accent/5">
+                                    <div className="min-h-full flex flex-col">
+                                        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6">{children}</div>
+                                        <Footer />
+                                    </div>
+                                </main>
+                            </div>
                         </div>
-                    </div>
+                    </EntitlementsProvider>
                 </BrandingProvider>
             </AuthProvider>
         </QueryClientProvider>
