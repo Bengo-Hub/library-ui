@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { BookOpen, KeyRound, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
 import { Button, Card, Badge } from '@/components/ui/base';
-import { Field } from '@/components/ui/form';
-import { platformApi } from '@/lib/api/platform';
+import { Field, Select } from '@/components/ui/form';
+import { platformApi, ISBNDB_HOSTS } from '@/lib/api/platform';
 import { apiErrorMessage } from '@/lib/api/error-message';
 
 function formatWhen(ts: string | null): string {
@@ -24,6 +24,7 @@ function formatWhen(ts: string | null): string {
 export function IntegrationSettings({ orgSlug }: { orgSlug: string }) {
   const qc = useQueryClient();
   const [isbndbKey, setIsbndbKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
 
   const isbndb = useQuery({
     queryKey: ['platform', 'isbndb', orgSlug],
@@ -35,7 +36,7 @@ export function IntegrationSettings({ orgSlug }: { orgSlug: string }) {
   });
 
   const saveIsbndb = useMutation({
-    mutationFn: (key: string) => platformApi.setIsbndb(orgSlug, key),
+    mutationFn: (vars: { key: string; baseUrl: string }) => platformApi.setIsbndb(orgSlug, vars.key, vars.baseUrl),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['platform', 'isbndb', orgSlug] });
       setIsbndbKey('');
@@ -49,8 +50,9 @@ export function IntegrationSettings({ orgSlug }: { orgSlug: string }) {
   async function onSaveIsbndb(clear = false) {
     const key = clear ? '' : isbndbKey.trim();
     if (!clear && !key) { toast.error('Enter an ISBNdb API key'); return; }
+    const host = clear ? '' : (baseUrl || isbndb.data?.base_url || ISBNDB_HOSTS[0].value);
     try {
-      await saveIsbndb.mutateAsync(key);
+      await saveIsbndb.mutateAsync({ key, baseUrl: host });
       toast.success(clear ? 'ISBNdb key removed' : 'ISBNdb key saved — covers & descriptions enriched');
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to save key'));
@@ -98,7 +100,7 @@ export function IntegrationSettings({ orgSlug }: { orgSlug: string }) {
             </div>
           </div>
 
-          <Field label="ISBNdb API key" hint="Stored encrypted at rest. Get a key at isbndb.com. Leave saved key by clearing the field.">
+          <Field label="ISBNdb API key" hint="Stored encrypted at rest. Get a key at isbndb.com (paid plans).">
             <input
               type="password"
               value={isbndbKey}
@@ -107,6 +109,15 @@ export function IntegrationSettings({ orgSlug }: { orgSlug: string }) {
               autoComplete="off"
               className="w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
             />
+          </Field>
+
+          <Field label="Plan / API host" hint="ISBNdb uses a different host per plan — pick the one matching your subscription.">
+            <Select
+              value={baseUrl || isbndbStatus?.base_url || ISBNDB_HOSTS[0].value}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            >
+              {ISBNDB_HOSTS.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
+            </Select>
           </Field>
 
           <div className="flex flex-wrap gap-2">
