@@ -6,6 +6,7 @@ import { Loader2, ScanLine } from 'lucide-react';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { Field, Select, Textarea } from '@/components/ui/form';
+import { Combobox } from '@/components/ui/combobox';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useBranches } from '@/hooks/useBranches';
 import { useOutletStore } from '@/store/outlet';
@@ -87,10 +88,14 @@ export function CopyFormDialog({
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Branch">
-            <Select value={form.branch_id ?? ''} onChange={(e) => set('branch_id', e.target.value || undefined)}>
-              <option value="">— Select —</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </Select>
+            <Combobox
+              value={form.branch_id ?? ''}
+              onChange={(v) => set('branch_id', v || undefined)}
+              options={branches.map((b) => ({ value: b.id, label: b.name }))}
+              placeholder="— Select —"
+              searchPlaceholder="Search branches…"
+              allowClear
+            />
           </Field>
           <Field label="Status">
             <Select value={form.status ?? 'available'} onChange={(e) => set('status', e.target.value as CopyStatus)}>

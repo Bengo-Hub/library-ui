@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/base';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Dialog } from '@/components/ui/dialog';
 import { Combobox } from '@/components/ui/combobox';
+import { TermMultiSelect, TermSelect } from '@/components/ui/term-select';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { CoverThumb } from '@/components/library/CoverThumb';
 import { CollectionFormDialog } from '@/components/library/CollectionFormDialog';
@@ -17,7 +18,7 @@ import { LANGUAGES } from '@/lib/languages';
 export interface BibCovers { front?: File; back?: File }
 
 const EMPTY: BibInput = {
-  title: '', author: '', publisher: '', isbn: '', format: 'book', language: 'en',
+  title: '', author: '', authors: [], publisher: '', isbn: '', format: 'book', language: 'en',
   publication_year: null, edition: '', dewey: '', call_number: '', subjects: [], description: '',
   cover_url: null, cover_back_url: null, publication_place: '', other_isbns: [],
 };
@@ -33,7 +34,6 @@ export function BibForm({
   onSubmit: (data: BibInput, covers?: BibCovers) => void;
 }) {
   const [form, setForm] = useState<BibInput>(EMPTY);
-  const [subjectsText, setSubjectsText] = useState('');
   const [secondaryIsbn, setSecondaryIsbn] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -48,8 +48,11 @@ export function BibForm({
 
   useEffect(() => {
     if (initial) {
+      const authors = initial.authors?.length
+        ? initial.authors
+        : (initial.author ? initial.author.split(',').map((s) => s.trim()).filter(Boolean) : []);
       setForm({
-        title: initial.title, subtitle: initial.subtitle, author: initial.authors?.join(', ') || initial.author,
+        title: initial.title, subtitle: initial.subtitle, author: initial.author, authors,
         publisher: initial.publisher, publication_year: initial.publication_year ?? null, edition: initial.edition,
         isbn: initial.isbn, issn: initial.issn, format: initial.format, language: initial.language || 'en',
         dewey: initial.dewey, call_number: initial.call_number, subjects: initial.subjects ?? [],
@@ -57,7 +60,6 @@ export function BibForm({
         cover_back_url: initial.cover_back_url, publication_place: initial.publication_place, other_isbns: initial.other_isbns ?? [],
         pages: initial.pages ?? null,
       });
-      setSubjectsText((initial.subjects ?? []).join(', '));
       setSecondaryIsbn((initial.other_isbns ?? [])[0] ?? '');
       setCoverPreview(initial.cover_url ?? null);
       setBackPreview(initial.cover_back_url ?? null);
@@ -77,12 +79,16 @@ export function BibForm({
       const r = await isbnLookup.mutateAsync(clean);
       const found = !!(r.title || r.authors?.length || r.author || r.publisher || r.cover_url);
       if (!found) { toast.info('No match for that ISBN — enter the details manually.'); return; }
+      const lookedUpAuthors = r.authors?.length
+        ? r.authors
+        : (r.author ? r.author.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
       setForm((f) => ({
         ...f,
         isbn: r.isbn ?? clean,
         title: r.title ?? f.title,
         subtitle: r.subtitle ?? f.subtitle,
-        author: r.authors?.join(', ') || r.author || f.author,
+        authors: lookedUpAuthors?.length ? lookedUpAuthors : f.authors,
+        author: undefined,
         publisher: r.publisher ?? f.publisher,
         publication_year: r.publication_year ?? f.publication_year,
         pages: r.pages ?? f.pages,
@@ -91,7 +97,6 @@ export function BibForm({
         description: r.description || f.description,
         subjects: r.subjects?.length ? r.subjects : f.subjects,
       }));
-      if (r.subjects?.length) setSubjectsText(r.subjects.join(', '));
       if (r.cover_url) setCoverPreview(r.cover_url);
       toast.success('Details auto-filled from ISBN');
     } catch {
@@ -119,9 +124,11 @@ export function BibForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
-    const subjects = subjectsText.split(',').map((s) => s.trim()).filter(Boolean);
     const other = secondaryIsbn.trim() ? [secondaryIsbn.trim()] : [];
-    onSubmit({ ...form, subjects, other_isbns: other }, { front: coverFile ?? undefined, back: backFile ?? undefined });
+    onSubmit(
+      { ...form, author: undefined, authors: form.authors ?? [], subjects: form.subjects ?? [], other_isbns: other },
+      { front: coverFile ?? undefined, back: backFile ?? undefined },
+    );
   }
 
   const collectionOptions = collections.map((c) => ({ value: c.id, label: c.name, hint: c.is_global ? undefined : 'custom' }));
@@ -173,14 +180,32 @@ export function BibForm({
           <Field label="Subtitle" className="sm:col-span-2">
             <input value={form.subtitle ?? ''} onChange={(e) => set('subtitle', e.target.value)} className={INPUT} />
           </Field>
-          <Field label="Author(s)">
-            <input value={form.author ?? ''} onChange={(e) => set('author', e.target.value)} placeholder="Surname, Firstname" className={INPUT} />
+          <Field label="Author(s)" hint="Search existing or type to add" className="sm:col-span-2">
+            <TermMultiSelect
+              orgSlug={orgSlug} kind="author"
+              values={form.authors ?? []}
+              onChange={(v) => set('authors', v)}
+              placeholder="Surname, Firstname"
+              addLabel="Add author"
+            />
           </Field>
           <Field label="Publisher">
-            <input value={form.publisher ?? ''} onChange={(e) => set('publisher', e.target.value)} className={INPUT} />
+            <TermSelect
+              orgSlug={orgSlug} kind="publisher"
+              value={form.publisher ?? ''}
+              onChange={(v) => set('publisher', v)}
+              placeholder="Select or add publisher…"
+              addLabel="Add publisher"
+            />
           </Field>
           <Field label="Place of publication">
-            <input value={form.publication_place ?? ''} onChange={(e) => set('publication_place', e.target.value)} placeholder="Nairobi, Kenya" className={INPUT} />
+            <TermSelect
+              orgSlug={orgSlug} kind="place"
+              value={form.publication_place ?? ''}
+              onChange={(v) => set('publication_place', v)}
+              placeholder="Nairobi, Kenya"
+              addLabel="Add place"
+            />
           </Field>
           <Field label="Format" required>
             <Select value={form.format} onChange={(e) => set('format', e.target.value as BibFormat)}>
@@ -226,8 +251,14 @@ export function BibForm({
           <Field label="Pages">
             <input type="number" value={form.pages ?? ''} onChange={(e) => set('pages', e.target.value ? Number(e.target.value) : null)} className={INPUT} />
           </Field>
-          <Field label="Subjects" hint="Comma-separated" className="sm:col-span-2">
-            <input value={subjectsText} onChange={(e) => setSubjectsText(e.target.value)} placeholder="Kenyan fiction (English), Women — Kenya — Fiction" className={INPUT} />
+          <Field label="Subjects" hint="Search existing or type to add" className="sm:col-span-2">
+            <TermMultiSelect
+              orgSlug={orgSlug} kind="subject"
+              values={form.subjects ?? []}
+              onChange={(v) => set('subjects', v)}
+              placeholder="Kenyan fiction (English), Women — Kenya — Fiction"
+              addLabel="Add subject"
+            />
           </Field>
           <Field label="Description / notes" className="sm:col-span-2">
             <Textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} />
