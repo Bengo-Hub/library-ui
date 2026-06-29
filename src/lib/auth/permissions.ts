@@ -30,6 +30,19 @@ export function isPlatformOwner(
 // superusers, and tenant admins (the local `library_admin` role).
 const FULL_TENANT_ACCESS_ROLES = ["superuser", "admin", "library_admin"];
 
+// Post-login landing route by role: admins/management land on the analytics dashboard;
+// desk staff/librarians land on the circulation desk; patrons on the catalog.
+const ADMIN_ROLES = ["superuser", "admin", "library_admin", "owner", "manager", "management"];
+const STAFF_ROLES = ["library_staff", "librarian", "desk", "circulation", "staff"];
+
+export function landingPath(roles: string[] | undefined | null): string {
+  const r = (roles ?? []).map((x) => x.toLowerCase());
+  if (r.some((x) => ADMIN_ROLES.includes(x))) return "/dashboard";
+  if (r.some((x) => STAFF_ROLES.includes(x))) return "/circulation";
+  if (r.includes("library_member")) return "/catalog";
+  return "/dashboard";
+}
+
 function hasFullTenantAccess(user: UserProfile | null): boolean {
   if (!user) return false;
   if (user.isSuperUser === true || (user as { isPlatformOwner?: boolean }).isPlatformOwner === true) return true;

@@ -252,6 +252,23 @@ export const useAuthStore = create<AuthState>()(
                 session: state.session,
                 user: state.user,
             }),
+            // Restore the access token + tenant headers onto the API client the instant the store
+            // rehydrates — BEFORE any React Query (e.g. useMe → /auth/me) fires. Otherwise the first
+            // request on a page refresh goes out unauthenticated, 401s, and the on401 handler logs
+            // the user out. Seed lastAuthenticatedAt too so the 401 grace window covers the race.
+            onRehydrateStorage: () => (state) => {
+                if (state?.session?.accessToken) {
+                    apiClient.setAccessToken(state.session.accessToken);
+                    if (state.user) {
+                        apiClient.setTenantInfo(state.user.tenant_id, state.user.tenant_slug);
+                    }
+                    const exp = state.session.expiresAt ? new Date(state.session.expiresAt).getTime() : 0;
+                    if (!exp || Date.now() < exp) {
+                        state.lastAuthenticatedAt = Date.now();
+                        state.status = 'authenticated';
+                    }
+                }
+            },
         }
     )
 );

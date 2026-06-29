@@ -105,6 +105,7 @@ export const membersApi = {
   get: (orgSlug: string, id: string) => apiClient.get<Member>(`${libBase(orgSlug)}/members/${id}`),
   create: (orgSlug: string, data: MemberInput) => apiClient.post<Member>(`${libBase(orgSlug)}/members`, data),
   update: (orgSlug: string, id: string, data: Partial<MemberInput>) => apiClient.put<Member>(`${libBase(orgSlug)}/members/${id}`, data),
+  delete: (orgSlug: string, id: string) => apiClient.delete<{ deleted: boolean }>(`${libBase(orgSlug)}/members/${id}`),
 
   // Member tiers
   listTiers: async (orgSlug: string): Promise<MemberTier[]> => {

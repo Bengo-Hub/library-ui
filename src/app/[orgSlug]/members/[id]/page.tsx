@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BookOpen, CircleDollarSign, Mail, Pencil, Phone, RotateCcw, User } from 'lucide-react';
-import { useMember, useUpdateMember, useIssueMembershipFee } from '@/hooks/useMembers';
+import { ArrowLeft, BookOpen, Ban, CheckCircle2, CircleDollarSign, Mail, MapPin, Pencil, Phone, RotateCcw, Trash2, User } from 'lucide-react';
+import { useMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
 import { useMemberLoans, useRenew } from '@/hooks/useCirculation';
 import { useMemberFines, useWaiveFine, usePayFine } from '@/hooks/useFines';
 import { PageHeader, Skeleton, StatCard } from '@/components/ui/page';
@@ -13,6 +13,8 @@ import { Button, Badge, Card } from '@/components/ui/base';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { MemberFormDialog } from '@/components/library/MemberFormDialog';
+import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
+import { Can } from '@/components/auth/Can';
 import type { MemberInput } from '@/lib/api/members';
 import type { Fine } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
@@ -30,6 +32,7 @@ export default function MemberDetailPage() {
   const { data: loans = [], isLoading: loansLoading } = useMemberLoans(orgSlug, id);
   const { data: fines = [], isLoading: finesLoading } = useMemberFines(orgSlug, id);
   const updateMember = useUpdateMember(orgSlug);
+  const deleteMember = useDeleteMember(orgSlug);
   const renew = useRenew(orgSlug);
   const waiveFine = useWaiveFine(orgSlug);
   const payFine = usePayFine(orgSlug);
@@ -38,6 +41,8 @@ export default function MemberDetailPage() {
   const [tab, setTab] = useState<Tab>('loans');
   const [editOpen, setEditOpen] = useState(false);
   const [toWaive, setToWaive] = useState<Fine | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
 
   const outstanding = fines.filter((f) => f.status === 'outstanding' || f.status === 'partial');
 
@@ -76,10 +81,32 @@ export default function MemberDetailPage() {
   async function handleChargeMembership() {
     try {
       const res = await issueFee.mutateAsync(id);
-      if (res.initiate_url) window.location.href = res.initiate_url; // shared treasury pay page
-      else toast.success('Membership fee issued');
+      setPayIntent(res); // open the in-app treasury payment modal
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to issue membership fee'));
+    }
+  }
+
+  async function handleToggleStatus() {
+    if (!member) return;
+    const next = member.status === 'suspended' ? 'active' : 'suspended';
+    try {
+      await updateMember.mutateAsync({ id, data: { first_name: member.first_name, last_name: member.last_name, status: next } });
+      toast.success(next === 'suspended' ? 'Member suspended' : 'Member reactivated');
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to update status'));
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await deleteMember.mutateAsync(id);
+      toast.success('Member deleted');
+      router.replace(`/${orgSlug}/members`);
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to delete member'));
+    } finally {
+      setConfirmDelete(false);
     }
   }
 
@@ -112,9 +139,21 @@ export default function MemberDetailPage() {
               {member.expires_at && <span>Expires {formatDate(member.expires_at)}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-1.5" disabled={issueFee.isPending} onClick={handleChargeMembership}><CircleDollarSign className="h-4 w-4" /> Charge fee</Button>
-            <Button variant="outline" className="gap-1.5" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /> Edit</Button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Can perm="library.membership_fees.add">
+              <Button variant="outline" className="gap-1.5" disabled={issueFee.isPending} onClick={handleChargeMembership}><CircleDollarSign className="h-4 w-4" /> Charge fee</Button>
+            </Can>
+            <Can perm="library.members.change">
+              <Button variant="outline" className="gap-1.5" disabled={updateMember.isPending} onClick={handleToggleStatus}>
+                {member.status === 'suspended' ? <><CheckCircle2 className="h-4 w-4" /> Reactivate</> : <><Ban className="h-4 w-4" /> Suspend</>}
+              </Button>
+            </Can>
+            <Can perm="library.members.change">
+              <Button variant="outline" className="gap-1.5" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /> Edit</Button>
+            </Can>
+            <Can perm="library.members.delete">
+              <Button variant="destructive" size="icon" title="Delete member" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" /></Button>
+            </Can>
           </div>
         </div>
       </Card>
@@ -191,6 +230,24 @@ export default function MemberDetailPage() {
       )}
 
       <MemberFormDialog open={editOpen} orgSlug={orgSlug} initial={member} saving={updateMember.isPending} onSubmit={handleEdit} onClose={() => setEditOpen(false)} />
+
+      <MembershipPaymentModal
+        open={!!payIntent}
+        orgSlug={orgSlug}
+        intent={payIntent}
+        onClose={() => setPayIntent(null)}
+        onPaid={() => toast.success('Membership fee paid')}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this member?"
+        description="This permanently removes the patron record. Blocked if they have active loans or unpaid fines."
+        variant="danger"
+        confirmLabel="Delete member"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       <ConfirmDialog
         open={!!toWaive}

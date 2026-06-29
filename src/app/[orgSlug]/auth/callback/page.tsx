@@ -3,6 +3,7 @@
 import { useBiometric } from '@/hooks/use-biometric';
 import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/store/auth';
+import { landingPath } from '@/lib/auth/permissions';
 import { Fingerprint, Loader2 } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -47,15 +48,17 @@ function AuthCallbackContent() {
         if (status === 'authenticated') {
             const returnTo = sessionStorage.getItem('sso_return_to');
             sessionStorage.removeItem('sso_return_to');
+            const authState = useAuthStore.getState();
+            const authUser = authState.user;
+            // Role-based landing: admins → dashboard, desk staff → circulation, patrons → catalog.
+            const home = `/${orgSlug}${landingPath((authUser?.roles as string[]) ?? [])}`;
             const storedBranch = typeof window !== 'undefined'
                 ? localStorage.getItem('library-selected-branch-id') : null;
             if (storedBranch) {
-                router.replace(returnTo || `/${orgSlug}`);
+                router.replace(returnTo || home);
                 return;
             }
 
-            const authState = useAuthStore.getState();
-            const authUser = authState.user;
             const jwtBranchId = (authUser as any)?.outlet_id || (authUser as any)?.branch_id;
             const isHqUser = (authUser as any)?.is_hq_user || (authUser as any)?.isHqUser;
 
@@ -64,7 +67,7 @@ function AuthCallbackContent() {
                     localStorage.setItem('library-selected-branch-id', jwtBranchId);
                 }
                 apiClient.setOutletID(jwtBranchId);
-                router.replace(returnTo || `/${orgSlug}`);
+                router.replace(returnTo || home);
                 return;
             }
 

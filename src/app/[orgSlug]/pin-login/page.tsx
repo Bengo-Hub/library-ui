@@ -14,6 +14,7 @@ import { BranchCard } from '@/components/library/pin/BranchCard';
 import { PinKeypad } from '@/components/library/pin/PinKeypad';
 import { QwertyKeyboard } from '@/components/library/pin/QwertyKeyboard';
 import { apiErrorMessage } from '@/lib/api/error-message';
+import { landingPath } from '@/lib/auth/permissions';
 
 const PIN_LENGTH = 4; // numeric PINs auto-submit at 4; alphanumeric PINs submit via Enter/Login
 
@@ -64,7 +65,9 @@ export default function PinLoginPage() {
       apiClient.setOutletID(bid);
       setOutlet({ id: bid, code: branch.code, name: res.branch_name ?? branch.name, is_hq: !!res.is_admin });
       toast.success(`Welcome, ${res.name || 'staff'}`);
-      router.replace(`/${orgSlug}/circulation`);
+      // Role-based landing: admins → dashboard, desk staff → circulation.
+      const roles = useAuthStore.getState().user?.roles ?? (res.is_admin ? ['library_admin'] : ['library_staff']);
+      router.replace(`/${orgSlug}${landingPath(roles as string[])}`);
     } catch (e) {
       setError(true);
       setShake(true);

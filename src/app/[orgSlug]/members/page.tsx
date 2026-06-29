@@ -4,15 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Plus, Search, Pencil } from 'lucide-react';
-import { useMembers, useCreateMember, useUpdateMember } from '@/hooks/useMembers';
+import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2 } from 'lucide-react';
+import { useMembers, useCreateMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { MemberFormDialog } from '@/components/library/MemberFormDialog';
+import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
 import { type Member, type MemberInput, type MemberStatus } from '@/lib/api/members';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatMoney } from '@/lib/format';
@@ -37,9 +39,31 @@ export default function MembersPage() {
   const { data, isLoading } = useMembers(orgSlug, { q: debouncedQ || undefined, status: status || undefined, page, limit: PAGE_SIZE });
   const createMember = useCreateMember(orgSlug);
   const updateMember = useUpdateMember(orgSlug);
+  const issueFee = useIssueMembershipFee(orgSlug);
+  const deleteMember = useDeleteMember(orgSlug);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Member | undefined>();
+  const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
+  const [toDelete, setToDelete] = useState<Member | null>(null);
+
+  async function chargeFee(m: Member) {
+    try { setPayIntent(await issueFee.mutateAsync(m.id)); }
+    catch (e) { toast.error(await apiErrorMessage(e, 'Failed to issue membership fee')); }
+  }
+  async function toggleStatus(m: Member) {
+    const next: MemberStatus = m.status === 'suspended' ? 'active' : 'suspended';
+    try {
+      await updateMember.mutateAsync({ id: m.id, data: { first_name: m.first_name, last_name: m.last_name, status: next } });
+      toast.success(next === 'suspended' ? 'Member suspended' : 'Member reactivated');
+    } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to update status')); }
+  }
+  async function confirmDeleteMember() {
+    if (!toDelete) return;
+    try { await deleteMember.mutateAsync(toDelete.id); toast.success('Member deleted'); }
+    catch (e) { toast.error(await apiErrorMessage(e, 'Failed to delete member')); }
+    finally { setToDelete(null); }
+  }
 
   const members = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
@@ -62,9 +86,25 @@ export default function MembersPage() {
     {
       key: 'actions', header: '', actions: true, align: 'right',
       cell: (m) => (
-        <Can perm="library.members.change">
-          <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-        </Can>
+        <div className="flex items-center justify-end gap-0.5">
+          <Link href={`/${orgSlug}/members/${m.id}`}>
+            <Button variant="ghost" size="icon" title="View"><Eye className="h-4 w-4" /></Button>
+          </Link>
+          <Can perm="library.membership_fees.add">
+            <Button variant="ghost" size="icon" title="Charge fee" disabled={issueFee.isPending} onClick={() => chargeFee(m)}><CircleDollarSign className="h-4 w-4" /></Button>
+          </Can>
+          <Can perm="library.members.change">
+            <Button variant="ghost" size="icon" title={m.status === 'suspended' ? 'Reactivate' : 'Suspend'} disabled={updateMember.isPending} onClick={() => toggleStatus(m)}>
+              {m.status === 'suspended' ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Ban className="h-4 w-4" />}
+            </Button>
+          </Can>
+          <Can perm="library.members.change">
+            <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(m); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+          </Can>
+          <Can perm="library.members.delete">
+            <Button variant="ghost" size="icon" title="Delete" onClick={() => setToDelete(m)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </Can>
+        </div>
       ),
     },
   ];
@@ -141,6 +181,24 @@ export default function MembersPage() {
         saving={createMember.isPending || updateMember.isPending}
         onSubmit={handleSubmit}
         onClose={() => { setDialogOpen(false); setEditing(undefined); }}
+      />
+
+      <MembershipPaymentModal
+        open={!!payIntent}
+        orgSlug={orgSlug}
+        intent={payIntent}
+        onClose={() => setPayIntent(null)}
+        onPaid={() => toast.success('Membership fee paid')}
+      />
+
+      <ConfirmDialog
+        open={!!toDelete}
+        title="Delete this member?"
+        description={`Permanently remove ${toDelete?.full_name ?? 'this patron'}. Blocked if they have active loans or unpaid fines.`}
+        variant="danger"
+        confirmLabel="Delete member"
+        onConfirm={confirmDeleteMember}
+        onCancel={() => setToDelete(null)}
       />
     </div>
   );

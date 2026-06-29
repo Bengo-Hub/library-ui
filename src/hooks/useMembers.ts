@@ -94,3 +94,19 @@ export function useIssueMembershipFee(orgSlug: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'membership-fees', orgSlug] }),
   });
 }
+
+export function usePayMembershipFee(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (feeId: string) => membersApi.payMembershipFee(orgSlug, feeId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'membership-fees', orgSlug] }),
+  });
+}
+
+export function useDeleteMember(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => membersApi.delete(orgSlug, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'list', orgSlug] }),
+  });
+}
