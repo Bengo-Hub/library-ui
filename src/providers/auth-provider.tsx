@@ -35,6 +35,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => { active = false; };
     }, [initialize]);
 
+    // Auto-recover from stale-deploy ChunkLoadErrors: when a new build purges old JS chunks, a
+    // client still running the old HTML 404s on a chunk. Reload ONCE (guarded against loops) to
+    // pull the fresh build instead of showing a dead "page couldn't load" screen.
+    useEffect(() => {
+        function isChunkError(msg: string) {
+            return /ChunkLoadError|Loading chunk [\d]+ failed|Loading CSS chunk|Failed to fetch dynamically imported module/i.test(msg);
+        }
+        function recover() {
+            const KEY = 'lib-chunk-reload-at';
+            const last = Number(sessionStorage.getItem(KEY) || 0);
+            if (Date.now() - last < 15_000) return; // avoid reload loops
+            sessionStorage.setItem(KEY, String(Date.now()));
+            window.location.reload();
+        }
+        function onError(e: ErrorEvent) { if (isChunkError(e.message || '')) recover(); }
+        function onRejection(e: PromiseRejectionEvent) {
+            const r: any = e.reason;
+            if (isChunkError(String(r?.message || r?.name || r || ''))) recover();
+        }
+        window.addEventListener('error', onError);
+        window.addEventListener('unhandledrejection', onRejection);
+        return () => {
+            window.removeEventListener('error', onError);
+            window.removeEventListener('unhandledrejection', onRejection);
+        };
+    }, []);
+
     // Register 401 handler: clear all caches and redirect to SSO.
     useEffect(() => {
         apiClient.setOn401(() => {
