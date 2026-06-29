@@ -43,7 +43,7 @@ export function MembershipPaymentModal({
   return (
     <TreasuryPaymentModal
       open={open}
-      onOpenChange={(o: boolean) => { if (!o) onClose(); }}
+      onOpenChange={(o: boolean) => { if (!o) { refreshAfterPayment(); onClose(); } }}
       paymentIntentId={intent.intent_id}
       tenantSlug={orgSlug}
       treasuryUiUrl={treasuryUiUrl}
