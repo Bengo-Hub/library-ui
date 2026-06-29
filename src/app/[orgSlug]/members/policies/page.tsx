@@ -54,49 +54,45 @@ export default function LoanPoliciesPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Link href={`/${orgSlug}/members`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to members
       </Link>
       <PageHeader title="Loan Policies" subtitle="Loan periods and fine rules by format and tier" icon={<ListChecks className="h-5 w-5" />}
         actions={<Button className="gap-1.5" onClick={openNew}><Plus className="h-4 w-4" /> New Policy</Button>} />
 
-      <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : policies.length === 0 ? (
-          <EmptyState icon={<ListChecks className="h-12 w-12" />} title="No policies" description="Define how long items can be borrowed and the fine rules." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Policy</Button>} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Policy</th>
-                  <th className="px-5 py-3 font-semibold">Format</th>
-                  <th className="px-5 py-3 font-semibold">Period</th>
-                  <th className="px-5 py-3 font-semibold">Renewals</th>
-                  <th className="px-5 py-3 font-semibold">Daily fine</th>
-                  <th className="px-5 py-3 font-semibold">Grace</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {policies.map((p) => (
-                  <tr key={p.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3 font-medium">{p.name}</td>
-                    <td className="px-5 py-3">{p.format ?? 'Any'}</td>
-                    <td className="px-5 py-3">{p.loan_period_days} days</td>
-                    <td className="px-5 py-3">{p.max_renewals}</td>
-                    <td className="px-5 py-3">{formatMoney(p.daily_fine_rate)}</td>
-                    <td className="px-5 py-3">{p.grace_period_days ?? 0} days</td>
-                    <td className="px-5 py-3 text-right"><Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
+      ) : policies.length === 0 ? (
+        <Card><EmptyState icon={<ListChecks className="h-12 w-12" />} title="No policies" description="Define how long items can be borrowed and the fine rules." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Policy</Button>} /></Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {policies.map((p) => {
+            const pol = p as LoanPolicy & { is_default?: boolean; is_global?: boolean; holdable?: boolean };
+            return (
+              <Card key={p.id} className="p-5 hover:border-primary/40 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base truncate">{p.name}</h3>
+                      {pol.is_default && <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase">Default</span>}
+                      {pol.is_global && <span className="rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-bold uppercase">Shared</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{p.format ?? 'Any format'}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" title="Edit policy" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Loan period</dt><dd className="font-semibold">{p.loan_period_days} days</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Renewals</dt><dd className="font-semibold">{p.max_renewals}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Daily fine</dt><dd className="font-semibold">{formatMoney(p.daily_fine_rate)}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Grace</dt><dd className="font-semibold">{p.grace_period_days ?? 0} days</dd></div>
+                </dl>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title={editing ? 'Edit policy' : 'New policy'}
         footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={createPolicy.isPending || updatePolicy.isPending} className="gap-1.5">{(createPolicy.isPending || updatePolicy.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}{editing ? 'Save' : 'Create'}</Button></>}>

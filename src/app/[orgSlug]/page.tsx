@@ -13,10 +13,16 @@ import {
   Tablet,
   ArrowRight,
 } from 'lucide-react';
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, BarChart, Bar,
+} from 'recharts';
 import { useLibrarySummary, usePopularTitles } from '@/hooks/useReports';
 import { StatCard, PageHeader, Skeleton } from '@/components/ui/page';
 import { Card } from '@/components/ui/base';
 import { formatMoney } from '@/lib/format';
+
+const CHART_COLORS = ['#7c3aed', '#06b6d4', '#f59e0b', '#10b981', '#ef4444'];
 
 const QUICK_ACTIONS = [
   { label: 'Circulation Desk', href: '/circulation', icon: BookOpen, desc: 'Check out & return' },
@@ -72,6 +78,62 @@ export default function DashboardPage() {
           sub={<Link href={`/${orgSlug}/holds`} className="text-primary hover:underline">Manage holds</Link>}
         />
       </div>
+
+      {/* Analytics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+        <Card className="lg:col-span-2 p-5">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">Circulation — last 14 days</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={summary?.circulation_trend ?? []} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gCheckout" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#7c3aed" stopOpacity={0.35} /><stop offset="95%" stopColor="#7c3aed" stopOpacity={0} /></linearGradient>
+                <linearGradient id="gReturn" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} /><stop offset="95%" stopColor="#06b6d4" stopOpacity={0} /></linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d: string) => d.slice(5)} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} stroke="hsl(var(--muted-foreground))" />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+              <Area type="monotone" dataKey="checkouts" name="Checkouts" stroke="#7c3aed" fill="url(#gCheckout)" strokeWidth={2} />
+              <Area type="monotone" dataKey="returns" name="Returns" stroke="#06b6d4" fill="url(#gReturn)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="p-5">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">Collection availability</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Available', value: summary?.available_copies ?? 0 },
+                  { name: 'On loan / other', value: Math.max(0, (summary?.total_copies ?? 0) - (summary?.available_copies ?? 0)) },
+                ]}
+                dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}
+              >
+                <Cell fill="#10b981" /><Cell fill="#f59e0b" />
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <p className="text-center text-xs text-muted-foreground">{(summary?.available_copies ?? 0).toLocaleString()} of {(summary?.total_copies ?? 0).toLocaleString()} copies available</p>
+        </Card>
+      </div>
+
+      {/* Most borrowed bar chart */}
+      {(popular?.data?.length ?? 0) > 0 && (
+        <Card className="p-5 mt-4">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">Top titles by loans (30 days)</h2>
+          <ResponsiveContainer width="100%" height={Math.max(160, (popular?.data?.length ?? 0) * 34)}>
+            <BarChart data={(popular?.data ?? []).map((t) => ({ name: t.title?.slice(0, 28) || 'Untitled', loans: t.loans }))} layout="vertical" margin={{ left: 8, right: 16 }}>
+              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis type="category" dataKey="name" width={170} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid hsl(var(--border))', fontSize: 12 }} />
+              <Bar dataKey="loans" radius={[0, 6, 6, 0]}>
+                {(popular?.data ?? []).map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
 
       {/* Quick actions */}
       <h2 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">Quick Actions</h2>

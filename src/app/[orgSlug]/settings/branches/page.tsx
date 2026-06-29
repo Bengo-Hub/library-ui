@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Library, Loader2, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Library, Loader2, Mail, MapPin, Pencil, Phone, Plus } from 'lucide-react';
 import { useBranches, useCreateBranch, useUpdateBranch } from '@/hooks/useBranches';
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
@@ -53,47 +53,44 @@ export default function BranchesPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Link href={`/${orgSlug}/settings`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to settings
       </Link>
       <PageHeader title="Branches" subtitle="Library branches and locations" icon={<Library className="h-5 w-5" />}
         actions={<Button className="gap-1.5" onClick={openNew}><Plus className="h-4 w-4" /> New Branch</Button>} />
 
-      <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : branches.length === 0 ? (
-          <EmptyState icon={<Library className="h-12 w-12" />} title="No branches" description="Add your first library branch." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Branch</Button>} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Branch</th>
-                  <th className="px-5 py-3 font-semibold">Code</th>
-                  <th className="px-5 py-3 font-semibold">Contact</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {branches.map((b) => (
-                  <tr key={b.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3">
-                      <span className="font-medium">{b.name}</span>
-                      {b.is_hq && <Badge variant="default" className="ml-2">HQ</Badge>}
-                      {b.address && <p className="text-xs text-muted-foreground">{b.address}</p>}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs">{b.code}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{b.phone ?? b.email ?? '—'}</td>
-                    <td className="px-5 py-3 text-right"><Button variant="ghost" size="icon" onClick={() => openEdit(b)}><Pencil className="h-4 w-4" /></Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
+      ) : branches.length === 0 ? (
+        <Card><EmptyState icon={<Library className="h-12 w-12" />} title="No branches" description="Add your first library branch." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Branch</Button>} /></Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {branches.map((b) => (
+            <Card key={b.id} className="p-5 hover:border-primary/40 hover:shadow-md transition-all">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0"><Library className="h-5 w-5" /></div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold truncate">{b.name}</h3>
+                      {b.is_hq && <Badge variant="default">HQ</Badge>}
+                    </div>
+                    <p className="font-mono text-xs text-muted-foreground">{b.code}</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" title="Edit branch" onClick={() => openEdit(b)}><Pencil className="h-4 w-4" /></Button>
+              </div>
+              <div className="mt-4 space-y-1.5 text-sm text-muted-foreground">
+                {b.address && <p className="flex items-start gap-2"><MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />{b.address}</p>}
+                {b.phone && <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" />{b.phone}</p>}
+                {b.email && <p className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 shrink-0" />{b.email}</p>}
+                {!b.address && !b.phone && !b.email && <p className="text-xs italic">No contact details</p>}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title={editing ? 'Edit branch' : 'New branch'}
         footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={createBranch.isPending || updateBranch.isPending} className="gap-1.5">{(createBranch.isPending || updateBranch.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}{editing ? 'Save' : 'Create'}</Button></>}>

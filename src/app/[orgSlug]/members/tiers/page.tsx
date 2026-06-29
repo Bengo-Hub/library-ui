@@ -52,51 +52,47 @@ export default function MemberTiersPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Link href={`/${orgSlug}/members`} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="h-4 w-4" /> Back to members
       </Link>
       <PageHeader title="Member Tiers" subtitle="Borrowing entitlements per membership tier" icon={<ListChecks className="h-5 w-5" />}
         actions={<Button className="gap-1.5" onClick={openNew}><Plus className="h-4 w-4" /> New Tier</Button>} />
 
-      <Card>
-        {isLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-        ) : tiers.length === 0 ? (
-          <EmptyState icon={<ListChecks className="h-12 w-12" />} title="No tiers" description="Create a tier to define loan limits and fine rates." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Tier</Button>} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Tier</th>
-                  <th className="px-5 py-3 font-semibold">Max loans</th>
-                  <th className="px-5 py-3 font-semibold">Loan period</th>
-                  <th className="px-5 py-3 font-semibold">Renewals</th>
-                  <th className="px-5 py-3 font-semibold">Holds</th>
-                  <th className="px-5 py-3 font-semibold">Daily fine</th>
-                  <th className="px-5 py-3 font-semibold">Fee</th>
-                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {tiers.map((t) => (
-                  <tr key={t.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3 font-medium">{t.name}</td>
-                    <td className="px-5 py-3">{t.max_loans}</td>
-                    <td className="px-5 py-3">{t.loan_period_days} days</td>
-                    <td className="px-5 py-3">{t.max_renewals}</td>
-                    <td className="px-5 py-3">{t.max_holds}</td>
-                    <td className="px-5 py-3">{formatMoney(t.daily_fine_rate)}</td>
-                    <td className="px-5 py-3">{formatMoney(t.membership_fee)}</td>
-                    <td className="px-5 py-3 text-right"><Button variant="ghost" size="icon" onClick={() => openEdit(t)}><Pencil className="h-4 w-4" /></Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44" />)}</div>
+      ) : tiers.length === 0 ? (
+        <Card><EmptyState icon={<ListChecks className="h-12 w-12" />} title="No tiers" description="Create a tier to define loan limits and fine rates." action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Tier</Button>} /></Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {tiers.map((t) => {
+            const tier = t as MemberTier & { is_default?: boolean; is_global?: boolean };
+            return (
+              <Card key={t.id} className="p-5 hover:border-primary/40 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-base truncate">{t.name}</h3>
+                      {tier.is_default && <span className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-bold uppercase">Default</span>}
+                      {tier.is_global && <span className="rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-[10px] font-bold uppercase">Shared</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{formatMoney(t.membership_fee)} / year</p>
+                  </div>
+                  <Button variant="ghost" size="icon" title="Edit tier" onClick={() => openEdit(t)}><Pencil className="h-4 w-4" /></Button>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Max loans</dt><dd className="font-semibold">{t.max_loans}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Loan period</dt><dd className="font-semibold">{t.loan_period_days} days</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Renewals</dt><dd className="font-semibold">{t.max_renewals}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Holds</dt><dd className="font-semibold">{t.max_holds}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Daily fine</dt><dd className="font-semibold">{formatMoney(t.daily_fine_rate)}</dd></div>
+                  <div><dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Annual fee</dt><dd className="font-semibold">{formatMoney(t.membership_fee)}</dd></div>
+                </dl>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title={editing ? 'Edit tier' : 'New tier'}
         footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={createTier.isPending || updateTier.isPending} className="gap-1.5">{(createTier.isPending || updateTier.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}{editing ? 'Save' : 'Create'}</Button></>}>
