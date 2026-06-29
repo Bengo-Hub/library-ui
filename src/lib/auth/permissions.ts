@@ -35,12 +35,14 @@ const FULL_TENANT_ACCESS_ROLES = ["superuser", "admin", "library_admin"];
 const ADMIN_ROLES = ["superuser", "admin", "library_admin", "owner", "manager", "management"];
 const STAFF_ROLES = ["library_staff", "librarian", "desk", "circulation", "staff"];
 
+// NOTE: the dashboard is the org INDEX route (`/{orgSlug}`), not `/{orgSlug}/dashboard` — so admins
+// land on "" (the org root). Returning "/dashboard" 404s.
 export function landingPath(roles: string[] | undefined | null): string {
   const r = (roles ?? []).map((x) => x.toLowerCase());
-  if (r.some((x) => ADMIN_ROLES.includes(x))) return "/dashboard";
+  if (r.some((x) => ADMIN_ROLES.includes(x))) return "";
   if (r.some((x) => STAFF_ROLES.includes(x))) return "/circulation";
   if (r.includes("library_member")) return "/catalog";
-  return "/dashboard";
+  return "";
 }
 
 function hasFullTenantAccess(user: UserProfile | null): boolean {
