@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Settings, Library, Users, ListChecks, BarChart3, Shield, ChevronRight } from 'lucide-react';
+import { Settings, Library, Users, ListChecks, BarChart3, Hash, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page';
 import { Card } from '@/components/ui/base';
 import { useBranding } from '@/providers/branding-provider';
@@ -18,6 +18,7 @@ export default function SettingsPage() {
     { label: 'Branches', href: '/settings/branches', icon: Library, desc: 'Manage library branches' },
     { label: 'Member Tiers', href: '/members/tiers', icon: ListChecks, desc: 'Borrowing entitlements' },
     { label: 'Loan Policies', href: '/members/policies', icon: ListChecks, desc: 'Loan periods & fine rules' },
+    { label: 'Numbering & Sequences', href: '/settings/sequences', icon: Hash, desc: 'Membership & accession number formats' },
     { label: 'Team & Roles', href: '/team', icon: Users, desc: 'Staff and permissions' },
     { label: 'Reports', href: '/reports', icon: BarChart3, desc: 'Circulation & collection reports' },
   ];
