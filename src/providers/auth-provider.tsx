@@ -9,7 +9,7 @@ import { useMe } from '@/hooks/useMe';
 import { useAuthStore } from '@/store/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const { status, initialize } = useAuthStore();
@@ -25,8 +25,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isAuthCallback = pathname?.includes('/auth');
     const isUnauthorizedPage = pathname?.endsWith('/unauthorized');
 
+    // `ready` = initialize() has run and restored any persisted session. We must NOT decide to
+    // redirect an "idle" user to pin-login until this completes, otherwise a page refresh bounces
+    // an authenticated user to login before their stored session is rehydrated.
+    const [ready, setReady] = useState(false);
     useEffect(() => {
-        initialize();
+        let active = true;
+        initialize().finally(() => { if (active) setReady(true); });
+        return () => { active = false; };
     }, [initialize]);
 
     // Register 401 handler: clear all caches and redirect to SSO.
@@ -53,10 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Unauthenticated users land on the PIN login page by default (the desk/kiosk default),
     // which itself offers "Sign in with company account (SSO)". Never redirect straight to SSO.
     useEffect(() => {
-        if (status === 'idle' && !pathname?.includes('/auth') && !pathname?.includes('/pin-login') && orgSlug) {
+        if (ready && status === 'idle' && !pathname?.includes('/auth') && !pathname?.includes('/pin-login') && orgSlug) {
             router.replace(`/${orgSlug}/pin-login`);
         }
-    }, [status, pathname, orgSlug, router]);
+    }, [ready, status, pathname, orgSlug, router]);
 
     useEffect(() => {
         if (!session || isUnauthorizedPage || meLoading) return;
@@ -69,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [session, isError, error, isUnauthorizedPage, meLoading, orgSlug, router]);
 
-    const loading = status === 'loading' || (!!session && meLoading);
+    const loading = !ready || status === 'loading' || (!!session && meLoading);
     if (loading && !isAuthCallback) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
