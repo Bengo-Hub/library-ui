@@ -53,6 +53,24 @@ export default function BibDetailPage() {
     }
   }
 
+  // Export the bib as MARCXML through the authenticated client (the raw API URL 401s in a plain
+  // browser tab since it carries no Bearer token), then download it as a .marc.xml file.
+  async function downloadMarc() {
+    try {
+      const blob = await catalogApi.marcXml(orgSlug, id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(bib?.title || 'record').replace(/[^\w.-]+/g, '_')}.marc.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to export MARCXML'));
+    }
+  }
+
   async function handlePlaceHold(memberId: string) {
     try {
       await placeHold.mutateAsync({ bib_record_id: id, member_id: memberId });
@@ -126,9 +144,9 @@ export default function BibDetailPage() {
                     <Button variant="outline" className="gap-1.5"><Pencil className="h-4 w-4" /> Edit</Button>
                   </Link>
                 </Can>
-                <a href={catalogApi.marcXmlUrl(orgSlug, bib.id)} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="gap-1.5" title="Export MARCXML"><FileDown className="h-4 w-4" /> MARC</Button>
-                </a>
+                <Button variant="outline" className="gap-1.5" title="Export this record as MARCXML" onClick={() => downloadMarc()}>
+                  <FileDown className="h-4 w-4" /> MARC
+                </Button>
                 <Can perm="library.catalog.delete">
                   <Button variant="destructive" size="icon" onClick={() => setConfirmDelete(true)} aria-label="Delete">
                     <Trash2 className="h-4 w-4" />

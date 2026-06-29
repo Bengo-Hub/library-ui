@@ -217,6 +217,9 @@ export const catalogApi = {
 
   /** MARCXML / MARC-in-JSON export + MARC-lite import. */
   marcXmlUrl: (orgSlug: string, id: string) => `${apiClient.baseUrl}${libBase(orgSlug)}/catalog/bibs/${id}/marc.xml`,
+  /** Fetch the MARCXML through the authenticated client (the raw URL needs a Bearer token). */
+  marcXml: (orgSlug: string, id: string): Promise<Blob> =>
+    apiClient.getBlob(`${libBase(orgSlug)}/catalog/bibs/${id}/marc.xml`),
   importMarc: async (orgSlug: string, data: Partial<BibInput>) =>
     fromBibRecord(await apiClient.post<BibRecord>(`${libBase(orgSlug)}/catalog/import/marc`, toBibPayload(data))),
 
