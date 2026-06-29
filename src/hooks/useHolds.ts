@@ -32,3 +32,14 @@ export function useCancelHold(orgSlug: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
   });
 }
+
+export function useMarkHoldReady(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => holdsApi.markReady(orgSlug, id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [KEY] });
+      qc.invalidateQueries({ queryKey: ['reports', 'summary', orgSlug] });
+    },
+  });
+}

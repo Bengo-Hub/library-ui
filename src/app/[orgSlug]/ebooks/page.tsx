@@ -14,6 +14,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Select } from '@/components/ui/form';
 import { CoverThumb } from '@/components/library/CoverThumb';
+import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
 import { type EbookFormat } from '@/lib/api/ebooks';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
@@ -33,14 +34,13 @@ export default function EbooksPage() {
   const upload = useUploadEbook(orgSlug);
   const purchase = usePurchaseEbook(orgSlug);
 
+  const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
+
   async function handleBuy(id: string) {
     try {
       const res = await purchase.mutateAsync({ id, memberId: '' });
-      if (res?.initiate_url) {
-        window.location.href = res.initiate_url; // shared treasury pay page
-      } else {
-        toast.success('Purchase started');
-      }
+      if (res?.intent_id) setPayIntent(res); // in-app treasury payment modal
+      else toast.success('Purchase started');
     } catch (e) { toast.error(await apiErrorMessage(e, 'Purchase failed')); }
   }
 
@@ -155,6 +155,16 @@ export default function EbooksPage() {
           </div>
         </div>
       </Dialog>
+
+      <MembershipPaymentModal
+        open={!!payIntent}
+        orgSlug={orgSlug}
+        intent={payIntent}
+        description="E-book purchase"
+        referenceType="ebook_sale"
+        onClose={() => setPayIntent(null)}
+        onPaid={() => toast.success('E-book purchased — enjoy your read!')}
+      />
     </div>
   );
 }

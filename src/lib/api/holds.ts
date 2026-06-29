@@ -31,5 +31,6 @@ export const holdsApi = {
     return normalizePage<Hold>(res);
   },
   place: (orgSlug: string, data: HoldInput) => apiClient.post<Hold>(`${libBase(orgSlug)}/holds`, data),
+  markReady: (orgSlug: string, id: string) => apiClient.post<{ ready: boolean }>(`${libBase(orgSlug)}/holds/${id}/ready`, {}),
   cancel: (orgSlug: string, id: string) => apiClient.delete<void>(`${libBase(orgSlug)}/holds/${id}`),
 };

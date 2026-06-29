@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookMarked, Plus, X } from 'lucide-react';
-import { useHolds, usePlaceHold, useCancelHold } from '@/hooks/useHolds';
+import { BookMarked, Plus, X, BellRing } from 'lucide-react';
+import { useHolds, usePlaceHold, useCancelHold, useMarkHoldReady } from '@/hooks/useHolds';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
@@ -34,6 +34,12 @@ export default function HoldsPage() {
   const { data, isLoading } = useHolds(orgSlug, { status: status || undefined, page, limit: PAGE_SIZE });
   const placeHold = usePlaceHold(orgSlug);
   const cancelHold = useCancelHold(orgSlug);
+  const markReady = useMarkHoldReady(orgSlug);
+
+  async function handleMarkReady(h: Hold) {
+    try { await markReady.mutateAsync(h.id); toast.success('Hold marked ready for pickup'); }
+    catch (e) { toast.error(await apiErrorMessage(e, 'Failed to mark ready')); }
+  }
 
   const [step, setStep] = useState<'idle' | 'pick-bib' | 'pick-member'>('idle');
   const [pendingBib, setPendingBib] = useState<string | null>(null);
@@ -51,11 +57,20 @@ export default function HoldsPage() {
     {
       key: 'actions', header: '', actions: true, align: 'right',
       cell: (h) => (h.status === 'pending' || h.status === 'ready') ? (
-        <Can perm="library.holds.delete">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
-            <X className="h-4 w-4" /> Cancel
-          </Button>
-        </Can>
+        <div className="flex items-center justify-end gap-1">
+          {h.status === 'pending' && (
+            <Can perm="library.holds.change">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-primary" disabled={markReady.isPending} onClick={() => handleMarkReady(h)}>
+                <BellRing className="h-4 w-4" /> Mark ready
+              </Button>
+            </Can>
+          )}
+          <Can perm="library.holds.delete">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={() => setToCancel(h)}>
+              <X className="h-4 w-4" /> Cancel
+            </Button>
+          </Can>
+        </div>
       ) : null,
     },
   ];
