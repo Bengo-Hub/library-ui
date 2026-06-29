@@ -12,6 +12,7 @@ import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Can } from '@/components/auth/Can';
+import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput } from '@/lib/api/copies';
 import { apiErrorMessage } from '@/lib/api/error-message';
@@ -37,6 +38,7 @@ function CopiesContent() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Copy | undefined>();
   const [toWithdraw, setToWithdraw] = useState<Copy | null>(null);
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
 
   async function handleSubmit(data: CopyInput) {
     try {
@@ -66,15 +68,10 @@ function CopiesContent() {
     }
   }
 
-  async function printLabel(copy: Copy) {
-    try {
-      const blob = await copiesApi.labelPdf(orgSlug, copy.id);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to generate label'));
-    }
+  function printLabel(copy: Copy) {
+    void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id), {
+      fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
+    });
   }
 
   if (!bibId) {
@@ -156,6 +153,8 @@ function CopiesContent() {
         onConfirm={handleWithdraw}
         onCancel={() => setToWithdraw(null)}
       />
+
+      <PdfPreview {...previewProps} />
     </div>
   );
 }

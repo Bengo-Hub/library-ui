@@ -13,6 +13,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { Role, TeamMember } from '@/lib/api/rbac';
 import { apiErrorMessage } from '@/lib/api/error-message';
+import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 
 function prettyPerm(p: string) {
   return p.replace(/^library\./, '').replace(/[._]/g, ' ');
@@ -114,15 +115,11 @@ export default function TeamPage() {
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [toDelete, setToDelete] = useState<Role | null>(null);
 
-  async function downloadStaffCard(m: TeamMember) {
-    try {
-      const blob = await pinApi.staffCardPdf(orgSlug, m.user_id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `staff-card-${m.user_id}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to generate staff card')); }
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (msg: string) => toast.error(msg) });
+  function downloadStaffCard(m: TeamMember) {
+    void openPreview(() => pinApi.staffCardPdf(orgSlug, m.user_id), {
+      fileName: `staff-card-${m.user_id}.pdf`, title: `Staff card · ${m.full_name ?? m.name ?? m.email ?? ''}`, orientation: 'landscape',
+    });
   }
 
   function openEdit(m: TeamMember) { setEditMember(m); setMemberRoles(new Set(m.roles)); }
@@ -277,6 +274,8 @@ export default function TeamPage() {
 
       <ConfirmDialog open={!!toDelete} onCancel={() => setToDelete(null)} onConfirm={doDeleteRole}
         title={`Delete role "${toDelete?.name}"?`} description="Members keeping this role lose its permissions. System roles cannot be deleted." variant="danger" confirmLabel="Delete role" />
+
+      <PdfPreview {...previewProps} />
     </div>
   );
 }

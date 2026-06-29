@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Building2, ExternalLink, KeyRound, Loader2, ScanLine, UserRound } from 'lucide-react';
+import { Building2, Camera, ExternalLink, KeyRound, Loader2, ScanLine, UserRound } from 'lucide-react';
+import { Dialog } from '@/components/ui/dialog';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { pinApi, type PinBranch } from '@/lib/api/pin';
 import { useAuthStore } from '@/store/auth';
 import { useOutletStore } from '@/store/outlet';
@@ -42,6 +44,7 @@ export default function PinLoginPage() {
   const [shake, setShake] = useState(false);
   const [keyboard, setKeyboard] = useState<'numeric' | 'qwerty'>('numeric');
   const [shift, setShift] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   useEffect(() => {
     pinApi.branches(orgSlug)
@@ -166,7 +169,7 @@ export default function PinLoginPage() {
           <>
             {/* Staff badge scan — a USB/handheld scanner types the card serial + Enter to log in. */}
             <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-20 w-full max-w-xs px-4">
-              <div className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md px-3 py-1.5">
+              <div className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md pl-3 pr-1.5 py-1">
                 <ScanLine className="h-4 w-4 text-primary shrink-0" />
                 <input
                   type="text"
@@ -183,6 +186,16 @@ export default function PinLoginPage() {
                   className="flex-1 bg-transparent text-sm focus:outline-none"
                   aria-label="Scan staff card"
                 />
+                <button
+                  type="button"
+                  onClick={() => setScanOpen(true)}
+                  disabled={submitting}
+                  className="shrink-0 h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center active:scale-95 transition-transform"
+                  aria-label="Scan staff card with camera"
+                  title="Scan with camera"
+                >
+                  <Camera className="h-4 w-4" />
+                </button>
               </div>
             </div>
 
@@ -233,6 +246,13 @@ export default function PinLoginPage() {
           </>
         )}
       </div>
+
+      <Dialog open={scanOpen} onClose={() => setScanOpen(false)} title="Scan staff card">
+        <BarcodeScanner
+          hint="Point your camera at the barcode on your staff card."
+          onScan={(text) => { setScanOpen(false); void submitCard(text); }}
+        />
+      </Dialog>
     </div>
   );
 }

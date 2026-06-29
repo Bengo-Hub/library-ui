@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { MemberFormDialog } from '@/components/library/MemberFormDialog';
 import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
 import { Can } from '@/components/auth/Can';
+import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import type { MemberInput } from '@/lib/api/members';
 import type { Fine } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
@@ -89,18 +90,13 @@ export default function MemberDetailPage() {
     }
   }
 
-  async function handleDownloadCard() {
-    try {
-      const blob = await membersApi.cardPdf(orgSlug, id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `member-card-${member?.membership_no ?? id}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to generate membership card'));
-    }
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+  function handleDownloadCard() {
+    void openPreview(() => membersApi.cardPdf(orgSlug, id), {
+      fileName: `member-card-${member?.membership_no ?? id}.pdf`,
+      title: 'Membership card',
+      orientation: 'landscape',
+    });
   }
 
   async function handleToggleStatus() {
@@ -247,6 +243,8 @@ export default function MemberDetailPage() {
       )}
 
       <MemberFormDialog open={editOpen} orgSlug={orgSlug} initial={member} saving={updateMember.isPending} onSubmit={handleEdit} onClose={() => setEditOpen(false)} />
+
+      <PdfPreview {...previewProps} />
 
       <MembershipPaymentModal
         open={!!payIntent}

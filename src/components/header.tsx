@@ -8,7 +8,7 @@ import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
 import { usePermissions } from '@/hooks/usePermissions';
 import { pinApi } from '@/lib/api/pin';
-import { apiErrorMessage } from '@/lib/api/error-message';
+import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
@@ -50,18 +50,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   const name = displayName(user);
   const role = user?.roles?.[0];
 
-  async function downloadMyCard() {
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+  function downloadMyCard() {
     setProfileOpen(false);
-    try {
-      const blob = await pinApi.myCardPdf(orgSlug);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'my-staff-card.pdf';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to generate your card'));
-    }
+    void openPreview(() => pinApi.myCardPdf(orgSlug), { fileName: 'my-staff-card.pdf', title: 'My staff card', orientation: 'landscape' });
   }
 
   function submitSearch(e: React.FormEvent) {
@@ -72,6 +64,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   }
 
   return (
+    <>
     <header className="h-16 sm:h-20 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-8 flex items-center justify-between">
       <div className="flex items-center gap-4 flex-1">
         <button
@@ -241,5 +234,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </form>
       )}
     </header>
+    <PdfPreview {...previewProps} />
+    </>
   );
 }
