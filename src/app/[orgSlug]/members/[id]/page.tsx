@@ -43,6 +43,7 @@ export default function MemberDetailPage() {
   const [toWaive, setToWaive] = useState<Fine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
+  const [payRefType, setPayRefType] = useState<'membership_fee' | 'library_fine'>('membership_fee');
 
   const outstanding = fines.filter((f) => f.status === 'outstanding' || f.status === 'partial');
 
@@ -71,8 +72,8 @@ export default function MemberDetailPage() {
   async function handlePay(fine: Fine) {
     try {
       const res = await payFine.mutateAsync(fine.id);
-      if (res.initiate_url) window.location.href = res.initiate_url;
-      else toast.error('No payment URL returned');
+      if (res.intent_id) { setPayRefType('library_fine'); setPayIntent(res); }
+      else toast.error('No payment intent returned');
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to start payment'));
     }
@@ -81,7 +82,7 @@ export default function MemberDetailPage() {
   async function handleChargeMembership() {
     try {
       const res = await issueFee.mutateAsync(id);
-      setPayIntent(res); // open the in-app treasury payment modal
+      setPayRefType('membership_fee'); setPayIntent(res); // open the in-app treasury payment modal
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to issue membership fee'));
     }
@@ -235,8 +236,10 @@ export default function MemberDetailPage() {
         open={!!payIntent}
         orgSlug={orgSlug}
         intent={payIntent}
+        referenceType={payRefType}
+        description={payRefType === 'library_fine' ? 'Library fine payment' : 'Library membership fee'}
         onClose={() => setPayIntent(null)}
-        onPaid={() => toast.success('Membership fee paid')}
+        onPaid={() => toast.success(payRefType === 'library_fine' ? 'Fine paid' : 'Membership fee paid')}
       />
 
       <ConfirmDialog

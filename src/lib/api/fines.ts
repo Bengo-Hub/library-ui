@@ -30,8 +30,11 @@ export interface MembershipFeeInput {
 }
 
 export interface PayResult {
-  /** treasury-hosted payment page the UI redirects to. */
+  /** treasury payment intent id — drives the in-app TreasuryPaymentModal. */
+  intent_id: string;
+  /** treasury initiate URL (POST endpoint the modal/iframe calls). */
   initiate_url: string;
+  amount?: string | number;
   reference?: string;
 }
 

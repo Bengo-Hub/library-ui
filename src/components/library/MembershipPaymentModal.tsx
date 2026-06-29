@@ -5,7 +5,7 @@ import { TreasuryPaymentModal } from '@bengo-hub/shared-ui-lib';
 export interface PaymentIntent {
   intent_id: string;
   initiate_url?: string;
-  amount: string | number;
+  amount?: string | number;
 }
 
 /**
@@ -26,12 +26,15 @@ export function MembershipPaymentModal({
   onPaid?: () => void;
 }) {
   if (!intent?.intent_id) return null;
+  // treasury-ui host that the modal embeds (falls back to the shared-ui-lib default).
+  const treasuryUiUrl = process.env.NEXT_PUBLIC_TREASURY_UI_URL || undefined;
   return (
     <TreasuryPaymentModal
       open={open}
       onOpenChange={(o: boolean) => { if (!o) onClose(); }}
       paymentIntentId={intent.intent_id}
       tenantSlug={orgSlug}
+      treasuryUiUrl={treasuryUiUrl}
       amount={Number(intent.amount) || 0}
       currency="KES"
       description={description}

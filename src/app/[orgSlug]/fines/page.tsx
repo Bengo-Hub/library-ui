@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
 import { MemberPicker } from '@/components/library/MemberPicker';
+import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
 import { type Fine, type FineStatus } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney } from '@/lib/format';
@@ -42,6 +43,7 @@ export default function FinesPage() {
   const [feeMember, setFeeMember] = useState<string | null>(null);
   const [feeOpen, setFeeOpen] = useState(false);
   const [feeAmount, setFeeAmount] = useState('');
+  const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
 
   const fines = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
@@ -79,8 +81,8 @@ export default function FinesPage() {
   async function handlePay(fine: Fine) {
     try {
       const res = await payFine.mutateAsync(fine.id);
-      if (res.initiate_url) window.location.href = res.initiate_url;
-      else toast.error('No payment URL returned');
+      if (res.intent_id) setPayIntent(res); // in-app treasury payment modal
+      else toast.error('No payment intent returned');
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to start payment')); }
   }
 
@@ -158,6 +160,16 @@ export default function FinesPage() {
           <input type="number" step="0.01" autoFocus value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
         </Field>
       </Dialog>
+
+      <MembershipPaymentModal
+        open={!!payIntent}
+        orgSlug={orgSlug}
+        intent={payIntent}
+        description="Library fine payment"
+        referenceType="library_fine"
+        onClose={() => setPayIntent(null)}
+        onPaid={() => toast.success('Fine paid')}
+      />
     </div>
   );
 }
