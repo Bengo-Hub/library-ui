@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Shield, Check, Loader2, Plus, Trash2, KeyRound, Pencil, Building2 } from 'lucide-react';
+import { Users, Shield, Check, Loader2, Plus, Trash2, KeyRound, Pencil, Building2, CreditCard } from 'lucide-react';
 import { useRoles, useAllPermissions, useUpdateRole, useTeam, useAssignRole, useCreateRole, useDeleteRole, useBranches, useAssignBranches } from '@/hooks/useRBAC';
 import { pinApi } from '@/lib/api/pin';
 import { PageHeader, Skeleton, EmptyState } from '@/components/ui/page';
@@ -114,6 +114,17 @@ export default function TeamPage() {
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [toDelete, setToDelete] = useState<Role | null>(null);
 
+  async function downloadStaffCard(m: TeamMember) {
+    try {
+      const blob = await pinApi.staffCardPdf(orgSlug, m.user_id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `staff-card-${m.user_id}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to generate staff card')); }
+  }
+
   function openEdit(m: TeamMember) { setEditMember(m); setMemberRoles(new Set(m.roles)); }
   async function saveMemberRoles() {
     if (!editMember) return;
@@ -185,6 +196,7 @@ export default function TeamPage() {
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openEdit(m)}><Pencil className="h-3.5 w-3.5" /> Roles</Button>
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openBranches(m)}><Building2 className="h-3.5 w-3.5" /> Branches</Button>
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { setPinMember(m); setPin(''); }}><KeyRound className="h-3.5 w-3.5" /> PIN</Button>
+                    <Button size="sm" variant="outline" className="gap-1.5" title="Download staff card" onClick={() => downloadStaffCard(m)}><CreditCard className="h-3.5 w-3.5" /> Card</Button>
                   </div>
                 </li>
               ))}

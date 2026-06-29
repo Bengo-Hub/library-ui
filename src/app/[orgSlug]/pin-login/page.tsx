@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Building2, ExternalLink, KeyRound, Loader2, UserRound } from 'lucide-react';
+import { Building2, ExternalLink, KeyRound, Loader2, ScanLine, UserRound } from 'lucide-react';
 import { pinApi, type PinBranch } from '@/lib/api/pin';
 import { useAuthStore } from '@/store/auth';
 import { useOutletStore } from '@/store/outlet';
@@ -76,6 +76,28 @@ export default function PinLoginPage() {
     }
   }
 
+  // Badge login: a scanned staff-card serial logs the staff member straight in at this branch.
+  async function submitCard(card: string) {
+    const serial = card.trim();
+    if (!branch || submitting || !serial) return;
+    setSubmitting(true);
+    setError(false);
+    try {
+      const res = await pinApi.identifyByCard(orgSlug, serial, branch.id);
+      await hydrate({ accessToken: res.access_token, refreshToken: '', expiresIn: res.expires_in }, orgSlug);
+      const bid = res.branch_id ?? branch.id;
+      apiClient.setOutletID(bid);
+      setOutlet({ id: bid, code: branch.code, name: res.branch_name ?? branch.name, is_hq: !!res.is_admin });
+      toast.success(`Welcome, ${res.name || 'staff'}`);
+      const roles = useAuthStore.getState().user?.roles ?? (res.is_admin ? ['library_admin'] : ['library_staff']);
+      router.replace(`/${orgSlug}${landingPath(roles as string[])}`);
+    } catch (e) {
+      setError(true);
+      setSubmitting(false);
+      toast.error(await apiErrorMessage(e, 'Staff card not recognised for this branch'));
+    }
+  }
+
   // Numeric keypad: append a digit; auto-submit a 4-digit PIN (the common case).
   function handleDigit(d: string) {
     if (submitting) return;
@@ -142,6 +164,28 @@ export default function PinLoginPage() {
           //  • small (<lg): one active keyboard + ABC/?123 toggle
           //  • large (lg+): SSO-login card LEFT · QWERTY CENTER · numeric keypad RIGHT (both shown)
           <>
+            {/* Staff badge scan — a USB/handheld scanner types the card serial + Enter to log in. */}
+            <div className="absolute left-1/2 -translate-x-1/2 -top-1 z-20 w-full max-w-xs px-4">
+              <div className="flex items-center gap-2 rounded-full bg-card border border-border shadow-md px-3 py-1.5">
+                <ScanLine className="h-4 w-4 text-primary shrink-0" />
+                <input
+                  type="text"
+                  inputMode="text"
+                  placeholder="Scan staff card…"
+                  disabled={submitting}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const v = (e.target as HTMLInputElement).value;
+                      (e.target as HTMLInputElement).value = '';
+                      void submitCard(v);
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-sm focus:outline-none"
+                  aria-label="Scan staff card"
+                />
+              </div>
+            </div>
+
             {/* SMALL SCREENS */}
             <div className="w-full max-w-md lg:hidden rounded-3xl bg-card border border-border shadow-xl shadow-black/5 p-5 sm:p-6">
               <div className="flex flex-col gap-4">

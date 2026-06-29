@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2 } from 'lucide-react';
+import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2, CreditCard } from 'lucide-react';
 import { useMembers, useCreateMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
+import { membersApi } from '@/lib/api/members';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
@@ -51,6 +52,16 @@ export default function MembersPage() {
     try { setPayIntent(await issueFee.mutateAsync(m.id)); }
     catch (e) { toast.error(await apiErrorMessage(e, 'Failed to issue membership fee')); }
   }
+  async function downloadCard(m: Member) {
+    try {
+      const blob = await membersApi.cardPdf(orgSlug, m.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `member-card-${m.membership_no}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to generate card')); }
+  }
   async function toggleStatus(m: Member) {
     const next: MemberStatus = m.status === 'suspended' ? 'active' : 'suspended';
     try {
@@ -90,6 +101,7 @@ export default function MembersPage() {
           <Link href={`/${orgSlug}/members/${m.id}`}>
             <Button variant="ghost" size="icon" title="View"><Eye className="h-4 w-4" /></Button>
           </Link>
+          <Button variant="ghost" size="icon" title="Download membership card" onClick={() => downloadCard(m)}><CreditCard className="h-4 w-4" /></Button>
           <Can perm="library.membership_fees.add">
             <Button variant="ghost" size="icon" title="Charge fee" disabled={issueFee.isPending} onClick={() => chargeFee(m)}><CircleDollarSign className="h-4 w-4" /></Button>
           </Can>

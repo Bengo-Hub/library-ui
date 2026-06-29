@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BookOpen, Ban, CheckCircle2, CircleDollarSign, Mail, MapPin, Pencil, Phone, RotateCcw, Trash2, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Ban, CheckCircle2, CircleDollarSign, CreditCard, Mail, MapPin, Pencil, Phone, RotateCcw, Trash2, User } from 'lucide-react';
+import { membersApi } from '@/lib/api/members';
 import { useMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
 import { useMemberLoans, useRenew } from '@/hooks/useCirculation';
 import { useMemberFines, useWaiveFine, usePayFine } from '@/hooks/useFines';
@@ -88,6 +89,20 @@ export default function MemberDetailPage() {
     }
   }
 
+  async function handleDownloadCard() {
+    try {
+      const blob = await membersApi.cardPdf(orgSlug, id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `member-card-${member?.membership_no ?? id}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to generate membership card'));
+    }
+  }
+
   async function handleToggleStatus() {
     if (!member) return;
     const next = member.status === 'suspended' ? 'active' : 'suspended';
@@ -149,6 +164,7 @@ export default function MemberDetailPage() {
                 {member.status === 'suspended' ? <><CheckCircle2 className="h-4 w-4" /> Reactivate</> : <><Ban className="h-4 w-4" /> Suspend</>}
               </Button>
             </Can>
+            <Button variant="outline" className="gap-1.5" title="Download membership card (PDF)" onClick={handleDownloadCard}><CreditCard className="h-4 w-4" /> Card</Button>
             <Can perm="library.members.change">
               <Button variant="outline" className="gap-1.5" onClick={() => setEditOpen(true)}><Pencil className="h-4 w-4" /> Edit</Button>
             </Can>

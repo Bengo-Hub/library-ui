@@ -2,10 +2,13 @@
 
 import { useAuthStore } from '@/store/auth';
 import { useState } from 'react';
-import { Bell, BookOpen, ChevronDown, ExternalLink, Globe, LogOut, Menu, Search, Settings, ShoppingCart, Tag, User } from 'lucide-react';
+import { Bell, BookOpen, ChevronDown, CreditCard, ExternalLink, Globe, LogOut, Menu, Search, Settings, ShoppingCart, Tag, User } from 'lucide-react';
+import { toast } from 'sonner';
 import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
 import { usePermissions } from '@/hooks/usePermissions';
+import { pinApi } from '@/lib/api/pin';
+import { apiErrorMessage } from '@/lib/api/error-message';
 import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
@@ -46,6 +49,20 @@ export function Header({ onMenuClick }: HeaderProps) {
   const isAuthenticated = !!user && !!session;
   const name = displayName(user);
   const role = user?.roles?.[0];
+
+  async function downloadMyCard() {
+    setProfileOpen(false);
+    try {
+      const blob = await pinApi.myCardPdf(orgSlug);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'my-staff-card.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to generate your card'));
+    }
+  }
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -130,6 +147,18 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <p className="text-sm font-black text-foreground">{name}</p>
                     <p className="text-[10px] text-muted-foreground truncate font-bold uppercase tracking-widest mt-0.5">{role || 'Librarian'}</p>
                   </div>
+
+                  <div className="h-px bg-border my-2 mx-1" />
+                  <button
+                    type="button"
+                    onClick={downloadMyCard}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
+                      <CreditCard className="h-4 w-4" />
+                    </div>
+                    My staff card
+                  </button>
 
                   {can('library.settings.manage') && (
                     <>

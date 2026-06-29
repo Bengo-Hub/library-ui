@@ -106,6 +106,8 @@ export const membersApi = {
   create: (orgSlug: string, data: MemberInput) => apiClient.post<Member>(`${libBase(orgSlug)}/members`, data),
   update: (orgSlug: string, id: string, data: Partial<MemberInput>) => apiClient.put<Member>(`${libBase(orgSlug)}/members/${id}`, data),
   delete: (orgSlug: string, id: string) => apiClient.delete<{ deleted: boolean }>(`${libBase(orgSlug)}/members/${id}`),
+  /** Printable membership card PDF (CR80 business card with a scannable CODE128 barcode). */
+  cardPdf: (orgSlug: string, id: string) => apiClient.getBlob(`${libBase(orgSlug)}/members/${id}/card.pdf`),
 
   // Member tiers
   listTiers: async (orgSlug: string): Promise<MemberTier[]> => {

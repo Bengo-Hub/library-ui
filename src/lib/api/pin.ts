@@ -46,7 +46,13 @@ export const pinApi = {
   /** Public — PIN-first login: identify the staff member by PIN at a branch (no profile picker). */
   identify: (orgSlug: string, pin: string, branchId: string) =>
     apiClient.post<PinLoginResult>(`${libBase(orgSlug)}/auth/pin/identify`, { pin, branch_id: branchId }),
+  /** Public — badge login: scan a staff card serial to identify + log in at a branch. */
+  identifyByCard: (orgSlug: string, card: string, branchId: string) =>
+    apiClient.post<PinLoginResult>(`${libBase(orgSlug)}/auth/pin/card`, { card, branch_id: branchId }),
   /** SSO-authed — manager sets/replaces a staff member's PIN. */
   setPin: (orgSlug: string, userId: string, pin: string) =>
     apiClient.post<{ updated: boolean }>(`${libBase(orgSlug)}/auth/pin/set`, { user_id: userId, pin }),
+  /** Staff card PDF (own card via /auth/me, or a specific staff card for admins). */
+  myCardPdf: (orgSlug: string) => apiClient.getBlob(`${libBase(orgSlug)}/auth/me/card.pdf`),
+  staffCardPdf: (orgSlug: string, userId: string) => apiClient.getBlob(`${libBase(orgSlug)}/team/${userId}/card.pdf`),
 };
