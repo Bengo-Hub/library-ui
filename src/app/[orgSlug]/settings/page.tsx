@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Settings, Library, Users, ListChecks, BarChart3, Hash, ChevronRight } from 'lucide-react';
+import { Settings, Library, Users, ListChecks, BarChart3, BookOpen, CalendarDays, Hash, Scale, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page';
 import { Card } from '@/components/ui/base';
 import { useBranding } from '@/providers/branding-provider';
@@ -16,6 +16,9 @@ export default function SettingsPage() {
 
   const links = [
     { label: 'Branches', href: '/settings/branches', icon: Library, desc: 'Manage library branches' },
+    { label: 'Circulation Rules', href: '/settings/circulation-rules', icon: Scale, desc: '3D matrix: Branch × Tier × Format' },
+    { label: 'Holiday Calendar', href: '/settings/calendar', icon: CalendarDays, desc: 'Closure days for due-date calculation' },
+    { label: 'Authorized Values', href: '/settings/authorized-values', icon: BookOpen, desc: 'Shelving locations, item statuses, payment types' },
     { label: 'Member Tiers', href: '/members/tiers', icon: ListChecks, desc: 'Borrowing entitlements' },
     { label: 'Loan Policies', href: '/members/policies', icon: ListChecks, desc: 'Loan periods & fine rules' },
     { label: 'Numbering & Sequences', href: '/settings/sequences', icon: Hash, desc: 'Membership & accession number formats' },

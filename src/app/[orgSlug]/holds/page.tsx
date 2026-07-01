@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookMarked, Plus, X, BellRing } from 'lucide-react';
+import { BookMarked, Plus, X, BellRing, Loader2 } from 'lucide-react';
 import { useHolds, usePlaceHold, useCancelHold, useMarkHoldReady } from '@/hooks/useHolds';
+import { useBibCopies } from '@/hooks/useCopies';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type Column } from '@/components/ui/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Can } from '@/components/auth/Can';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { Pagination } from '@/components/ui/pagination';
 import { BibPicker } from '@/components/library/BibPicker';
 import { MemberPicker } from '@/components/library/MemberPicker';
@@ -41,9 +43,12 @@ export default function HoldsPage() {
     catch (e) { toast.error(await apiErrorMessage(e, 'Failed to mark ready')); }
   }
 
-  const [step, setStep] = useState<'idle' | 'pick-bib' | 'pick-member'>('idle');
+  const [step, setStep] = useState<'idle' | 'pick-bib' | 'pick-member' | 'pick-copy'>('idle');
   const [pendingBib, setPendingBib] = useState<string | null>(null);
+  const [pendingMember, setPendingMember] = useState<string | null>(null);
   const [toCancel, setToCancel] = useState<Hold | null>(null);
+
+  const { data: bibCopiesPage } = useBibCopies(orgSlug, pendingBib ?? '');
 
   const holds = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
@@ -75,16 +80,22 @@ export default function HoldsPage() {
     },
   ];
 
-  async function completePlace(memberId: string) {
-    if (!pendingBib) return;
+  async function completePlace(copyId?: string) {
+    if (!pendingBib || !pendingMember) return;
     try {
-      await placeHold.mutateAsync({ bib_record_id: pendingBib, member_id: memberId });
-      toast.success('Hold placed');
+      await placeHold.mutateAsync({ bib_record_id: pendingBib, member_id: pendingMember, copy_id: copyId });
+      toast.success(copyId ? 'Item-level hold placed' : 'Hold placed');
       setStep('idle');
       setPendingBib(null);
+      setPendingMember(null);
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to place hold'));
     }
+  }
+
+  function onMemberSelected(memberId: string) {
+    setPendingMember(memberId);
+    setStep('pick-copy');
   }
 
   async function handleCancel() {
@@ -146,11 +157,44 @@ export default function HoldsPage() {
         open={step === 'pick-member'}
         orgSlug={orgSlug}
         title="Place a hold — choose the member"
-        confirmLabel="Place hold"
-        loading={placeHold.isPending}
-        onSelect={completePlace}
+        confirmLabel="Next"
+        onSelect={onMemberSelected}
         onCancel={() => { setStep('idle'); setPendingBib(null); }}
       />
+
+      {/* Optional: pick a specific copy for an item-level hold */}
+      <Dialog
+        open={step === 'pick-copy'}
+        onClose={() => { setStep('idle'); setPendingBib(null); setPendingMember(null); }}
+        title="Specific copy (optional)"
+      >
+        <div className="space-y-4 p-1">
+          <p className="text-sm text-muted-foreground">Select a specific copy if the member wants a particular item, or skip to place a bib-level hold.</p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {(bibCopiesPage ?? []).map((copy) => (
+              <button
+                key={copy.id}
+                onClick={() => completePlace(copy.id)}
+                disabled={placeHold.isPending}
+                className="w-full text-left px-3 py-2.5 rounded-lg border hover:border-primary hover:bg-primary/5 transition-colors text-sm"
+              >
+                <span className="font-mono font-medium">{copy.barcode}</span>
+                <span className="text-muted-foreground ml-2">· {copy.branch_name ?? copy.branch_id} · {copy.status}</span>
+              </button>
+            ))}
+            {(bibCopiesPage ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground py-3 text-center">No copies found for this title.</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setStep('idle'); setPendingBib(null); setPendingMember(null); }}>Cancel</Button>
+            <Button disabled={placeHold.isPending} onClick={() => completePlace(undefined)} className="gap-1.5">
+              {placeHold.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Skip — bib-level hold
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       <ConfirmDialog
         open={!!toCancel}

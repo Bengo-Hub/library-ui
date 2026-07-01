@@ -71,4 +71,7 @@ export const circulationApi = {
     const res = await apiClient.get<{ data?: Loan[] } | Loan[]>(`${libBase(orgSlug)}/members/${memberId}/loans`);
     return Array.isArray(res) ? res : (res.data ?? []);
   },
+
+  markLost: (orgSlug: string, loanId: string) =>
+    apiClient.post<{ message: string }>(`${libBase(orgSlug)}/circulation/loans/${loanId}/mark-lost`, {}),
 };

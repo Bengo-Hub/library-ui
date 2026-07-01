@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookOpen, ScanLine, User, RotateCcw, Undo2, CheckCircle2, AlertTriangle, CloudOff } from 'lucide-react';
+import { BookOpen, ScanLine, User, RotateCcw, Undo2, CheckCircle2, AlertTriangle, CloudOff, ShieldAlert } from 'lucide-react';
 import { enqueue, startOfflineSync, uid, queueSize } from '@/lib/offline-queue';
-import { useCheckout, useReturn, useRenew, useLoans } from '@/hooks/useCirculation';
+import { useCheckout, useReturn, useRenew, useMarkLost, useLoans } from '@/hooks/useCirculation';
 import { useMembers } from '@/hooks/useMembers';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Skeleton } from '@/components/ui/page';
@@ -48,6 +48,7 @@ export default function CirculationPage() {
   const checkout = useCheckout(orgSlug);
   const returnCopy = useReturn(orgSlug);
   const renew = useRenew(orgSlug);
+  const markLost = useMarkLost(orgSlug);
 
   function isOffline(e: unknown) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
@@ -94,6 +95,16 @@ export default function CirculationPage() {
         return;
       }
       toast.error(await apiErrorMessage(e, 'Return failed'));
+    }
+  }
+
+  async function doMarkLost(loan: Loan) {
+    if (!window.confirm(`Mark loan for "${loan.bib_title ?? loan.copy_barcode}" as lost and assess replacement fine?`)) return;
+    try {
+      await markLost.mutateAsync(loan.id);
+      toast.warning('Loan marked as lost. Replacement fine assessed.');
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Mark lost failed'));
     }
   }
 
@@ -232,10 +243,15 @@ export default function CirculationPage() {
                       ) : (
                         <Badge variant="success">Due {formatDate(loan.due_date)}</Badge>
                       )}
-                      {loan.status !== 'returned' && (
-                        <Button variant="ghost" size="icon" title="Renew" disabled={renew.isPending} onClick={() => doRenew(loan)}>
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
+                      {loan.status !== 'returned' && loan.status !== 'lost' && (
+                        <>
+                          <Button variant="ghost" size="icon" title="Renew" disabled={renew.isPending} onClick={() => doRenew(loan)}>
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Mark Lost" disabled={markLost.isPending} onClick={() => doMarkLost(loan)} className="text-destructive hover:text-destructive">
+                            <ShieldAlert className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                     </li>
                   );

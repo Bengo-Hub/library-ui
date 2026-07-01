@@ -14,7 +14,7 @@ import { type MemberTier, type MemberTierInput } from '@/lib/api/members';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatMoney } from '@/lib/format';
 
-const EMPTY: MemberTierInput = { name: '', max_loans: 5, loan_period_days: 14, max_renewals: 2, max_holds: 3, daily_fine_rate: 10, membership_fee: 0 };
+const EMPTY: MemberTierInput = { name: '', max_loans: 5, loan_period_days: 14, max_renewals: 2, max_holds: 3, daily_fine_rate: 10, membership_fee: 0, enrollment_period_months: null, max_age_years: null, min_age_years: null, graduated_tier_id: null };
 
 export default function MemberTiersPage() {
   const params = useParams();
@@ -30,7 +30,7 @@ export default function MemberTiersPage() {
   function openNew() { setEditing(undefined); setForm(EMPTY); setOpen(true); }
   function openEdit(t: MemberTier) {
     setEditing(t);
-    setForm({ name: t.name, max_loans: t.max_loans, loan_period_days: t.loan_period_days, max_renewals: t.max_renewals, max_holds: t.max_holds, daily_fine_rate: t.daily_fine_rate, membership_fee: t.membership_fee, description: t.description });
+    setForm({ name: t.name, max_loans: t.max_loans, loan_period_days: t.loan_period_days, max_renewals: t.max_renewals, max_holds: t.max_holds, daily_fine_rate: t.daily_fine_rate, membership_fee: t.membership_fee, description: t.description, enrollment_period_months: t.enrollment_period_months ?? null, max_age_years: t.max_age_years ?? null, min_age_years: t.min_age_years ?? null, graduated_tier_id: t.graduated_tier_id ?? null });
     setOpen(true);
   }
 
@@ -47,6 +47,15 @@ export default function MemberTiersPage() {
     return (
       <Field label={label}>
         <input type="number" step={step} value={(form[key] as number) ?? 0} onChange={(e) => setForm((f) => ({ ...f, [key]: Number(e.target.value) }))} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+      </Field>
+    );
+  }
+
+  function optNumField(label: string, key: keyof MemberTierInput, placeholder = '', step = '1') {
+    const val = form[key] as number | null | undefined;
+    return (
+      <Field label={label}>
+        <input type="number" step={step} placeholder={placeholder} value={val ?? ''} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value === '' ? null : Number(e.target.value) }))} className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
       </Field>
     );
   }
@@ -106,6 +115,27 @@ export default function MemberTiersPage() {
           {numField('Max holds', 'max_holds')}
           {numField('Daily fine rate', 'daily_fine_rate', '0.01')}
           {numField('Membership fee', 'membership_fee', '0.01')}
+
+          <div className="col-span-2 border-t pt-3 mt-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Auto-Transition Rules</p>
+            <div className="grid grid-cols-2 gap-4">
+              {optNumField('Enrollment period (months)', 'enrollment_period_months', 'e.g. 12 — sets expires_at at sign-up')}
+              {optNumField('Min age (years)', 'min_age_years', 'advisory minimum age')}
+              {optNumField('Max age (years)', 'max_age_years', 'auto-graduate when patron reaches this age')}
+              <Field label="Graduated-to tier">
+                <select
+                  value={form.graduated_tier_id ?? ''}
+                  onChange={(e) => setForm((f) => ({ ...f, graduated_tier_id: e.target.value || null }))}
+                  className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+                >
+                  <option value="">— none —</option>
+                  {tiers.filter((t) => t.id !== editing?.id).map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </div>
         </div>
       </Dialog>
     </div>

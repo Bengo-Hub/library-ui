@@ -9,6 +9,7 @@ import { Field, Select, Textarea } from '@/components/ui/form';
 import { Combobox } from '@/components/ui/combobox';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useBranches } from '@/hooks/useBranches';
+import { useAuthorizedValues } from '@/hooks/useAuthorizedValues';
 import { useOutletStore } from '@/store/outlet';
 import { COPY_STATUSES, type Copy, type CopyInput, type CopyStatus } from '@/lib/api/copies';
 
@@ -28,6 +29,10 @@ export function CopyFormDialog({
 }) {
   const { data: branchesPage } = useBranches(orgSlug);
   const branches = branchesPage?.data ?? [];
+  const { data: locPage } = useAuthorizedValues(orgSlug, 'LOC');
+  const locOptions = (locPage?.data ?? [])
+    .filter((v) => v.is_active)
+    .map((v) => ({ value: v.value, label: v.label ? `${v.value} — ${v.label}` : v.value }));
   const currentOutlet = useOutletStore((s) => s.outlet);
   const [form, setForm] = useState<CopyInput>({ bib_record_id: bibId, status: 'available' });
   const [scanOpen, setScanOpen] = useState(false);
@@ -103,7 +108,18 @@ export function CopyFormDialog({
             </Select>
           </Field>
           <Field label="Shelf location">
-            <input value={form.shelf_location ?? ''} onChange={(e) => set('shelf_location', e.target.value)} className={FIELD} />
+            {locOptions.length > 0 ? (
+              <Combobox
+                value={form.shelf_location ?? ''}
+                onChange={(v) => set('shelf_location', v || undefined)}
+                options={locOptions}
+                placeholder="— Select location —"
+                searchPlaceholder="Search locations…"
+                allowClear
+              />
+            ) : (
+              <input value={form.shelf_location ?? ''} onChange={(e) => set('shelf_location', e.target.value)} className={FIELD} placeholder="e.g. GEN, REF" />
+            )}
           </Field>
           <Field label="Call number" hint="Spine/shelf locator (e.g. 823.914 OGO)">
             <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} className={FIELD} />

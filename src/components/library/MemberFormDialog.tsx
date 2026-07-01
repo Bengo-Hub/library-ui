@@ -36,9 +36,10 @@ export function MemberFormDialog({
         membership_no: initial.membership_no, first_name: initial.first_name, last_name: initial.last_name,
         email: initial.email, phone: initial.phone, tier_id: initial.tier_id, status: initial.status,
         sso_user_id: initial.sso_user_id ?? undefined, crm_customer_id: initial.crm_customer_id ?? undefined,
-        expires_at: initial.expires_at ?? undefined, address: initial.address, notes: initial.notes,
+        expires_at: initial.expires_at ?? undefined, birth_date: initial.birth_date ?? undefined,
+        address: initial.address, notes: initial.notes,
       });
-      setShowAdvanced(Boolean(initial.sso_user_id || initial.crm_customer_id || initial.address || initial.notes));
+      setShowAdvanced(Boolean(initial.sso_user_id || initial.crm_customer_id || initial.address || initial.notes || initial.birth_date));
     } else {
       setForm({ first_name: '', last_name: '', status: 'active' });
       setShowAdvanced(false);
@@ -148,6 +149,9 @@ export function MemberFormDialog({
 
       {showAdvanced && (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border pt-4">
+          <Field label="Date of birth" hint="Used for age-based tier auto-transition">
+            <input type="date" value={form.birth_date ? form.birth_date.slice(0, 10) : ''} onChange={(e) => set('birth_date', e.target.value || undefined)} className={inputCls} />
+          </Field>
           <Field label="Linked SSO user" hint="Search existing platform users (accounts portal)">
             <Combobox
               value={form.sso_user_id ?? ''}

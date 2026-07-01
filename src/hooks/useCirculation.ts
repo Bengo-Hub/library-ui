@@ -53,3 +53,14 @@ export function useRenew(orgSlug: string) {
     onSuccess: () => invalidateCirc(qc, orgSlug),
   });
 }
+
+export function useMarkLost(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (loanId: string) => circulationApi.markLost(orgSlug, loanId),
+    onSuccess: () => {
+      invalidateCirc(qc, orgSlug);
+      qc.invalidateQueries({ queryKey: ['fines'] });
+    },
+  });
+}

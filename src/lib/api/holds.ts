@@ -23,6 +23,7 @@ export interface HoldInput {
   bib_record_id: string;
   member_id: string;
   pickup_branch_id?: string;
+  copy_id?: string; // optional — item-level hold for a specific copy
 }
 
 export const holdsApi = {

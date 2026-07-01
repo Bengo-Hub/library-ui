@@ -26,6 +26,7 @@ export interface Member {
   branch_id?: string;
   joined_at?: string;
   expires_at?: string | null;
+  birth_date?: string | null;
   address?: string;
   notes?: string;
   // summary counts enriched by library-api
@@ -47,6 +48,7 @@ export interface MemberInput {
   crm_customer_id?: string;
   branch_id?: string;
   expires_at?: string;
+  birth_date?: string;
   address?: string;
   notes?: string;
 }
@@ -61,6 +63,10 @@ export interface MemberTier {
   daily_fine_rate: number;
   membership_fee?: number;
   description?: string;
+  enrollment_period_months?: number | null;
+  max_age_years?: number | null;
+  min_age_years?: number | null;
+  graduated_tier_id?: string | null;
 }
 
 export interface MemberTierInput {
@@ -72,6 +78,10 @@ export interface MemberTierInput {
   daily_fine_rate: number;
   membership_fee?: number;
   description?: string;
+  enrollment_period_months?: number | null;
+  max_age_years?: number | null;
+  min_age_years?: number | null;
+  graduated_tier_id?: string | null;
 }
 
 export interface LoanPolicy {
@@ -134,6 +144,35 @@ export const membersApi = {
     apiClient.post<{ intent_id: string; initiate_url: string; amount: string }>(`${libBase(orgSlug)}/members/${memberId}/membership-fee`, {}),
   payMembershipFee: (orgSlug: string, feeId: string) =>
     apiClient.post<{ intent_id: string; initiate_url: string; amount: string }>(`${libBase(orgSlug)}/membership-fees/${feeId}/pay`, {}),
+
+  // Notification preferences
+  getNotificationPrefs: async (orgSlug: string, memberId: string): Promise<NotificationPref[]> => {
+    const res = await apiClient.get<{ data: NotificationPref[] }>(`${libBase(orgSlug)}/members/${memberId}/notification-prefs`);
+    return res.data ?? [];
+  },
+  updateNotificationPrefs: (orgSlug: string, memberId: string, prefs: NotificationPref[]) =>
+    apiClient.put<{ message: string }>(`${libBase(orgSlug)}/members/${memberId}/notification-prefs`, prefs),
+};
+
+export type NotificationChannel = 'EMAIL' | 'SMS' | 'PUSH';
+
+export interface NotificationPref {
+  event_type: string;
+  channel: NotificationChannel;
+  is_enabled: boolean;
+}
+
+export const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
+  'loan.overdue': 'Overdue notice',
+  'loan.recalled': 'Item recalled',
+  'hold.ready': 'Hold ready for pickup',
+  'hold.expired': 'Hold expired',
+  'fine.assessed': 'Fine assessed',
+  'fine.paid': 'Fine payment confirmed',
+  'membership.fee_due': 'Membership renewal due',
+  'ebook.expired': 'E-book loan expired',
+  'member.expired': 'Membership expired',
+  'member.graduated': 'Category graduated',
 };
 
 export interface MembershipFee {

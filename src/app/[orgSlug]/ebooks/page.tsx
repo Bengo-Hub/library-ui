@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Tablet, Plus, Search, Upload, Loader2, BookOpen, ShoppingCart } from 'lucide-react';
-import { useEbooks, useUploadEbook, usePurchaseEbook } from '@/hooks/useEbooks';
+import { Tablet, Plus, Search, Upload, Loader2, BookOpen, ShoppingCart, Download } from 'lucide-react';
+import { useEbooks, useUploadEbook, usePurchaseEbook, useDownloadEbook } from '@/hooks/useEbooks';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
@@ -33,15 +33,29 @@ export default function EbooksPage() {
   const { data, isLoading } = useEbooks(orgSlug, { q: debouncedQ || undefined, format: format || undefined, page, limit: PAGE_SIZE });
   const upload = useUploadEbook(orgSlug);
   const purchase = usePurchaseEbook(orgSlug);
+  const downloadMutation = useDownloadEbook(orgSlug);
 
   const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
+  const [pendingDownload, setPendingDownload] = useState<{ id: string; token: string } | null>(null);
 
   async function handleBuy(id: string) {
     try {
       const res = await purchase.mutateAsync({ id, memberId: '' });
-      if (res?.intent_id) setPayIntent(res); // in-app treasury payment modal
-      else toast.success('Purchase started');
+      if (res?.intent_id) {
+        setPendingDownload({ id, token: res.download_token });
+        setPayIntent(res);
+      } else toast.success('Purchase started');
     } catch (e) { toast.error(await apiErrorMessage(e, 'Purchase failed')); }
+  }
+
+  async function handleDownload(id: string, token: string) {
+    try {
+      const blob = await downloadMutation.mutateAsync({ id, token });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `ebook-${id}`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast.error(await apiErrorMessage(e, 'Download failed')); }
   }
 
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -162,8 +176,12 @@ export default function EbooksPage() {
         intent={payIntent}
         description="E-book purchase"
         referenceType="ebook_sale"
-        onClose={() => setPayIntent(null)}
-        onPaid={() => toast.success('E-book purchased — enjoy your read!')}
+        onClose={() => { setPayIntent(null); setPendingDownload(null); }}
+        onPaid={() => {
+          toast.success('E-book purchased!');
+          if (pendingDownload) handleDownload(pendingDownload.id, pendingDownload.token);
+          setPayIntent(null); setPendingDownload(null);
+        }}
       />
     </div>
   );

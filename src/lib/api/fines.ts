@@ -2,7 +2,7 @@ import { apiClient } from './client';
 import { libBase, normalizePage, type Paginated } from './types';
 
 export type FineStatus = 'outstanding' | 'paid' | 'waived' | 'partial';
-export type FineType = 'overdue' | 'lost' | 'damaged' | 'membership' | 'processing' | 'other';
+export type FineType = 'overdue' | 'lost' | 'damaged' | 'membership' | 'rental' | 'replacement' | 'processing' | 'other';
 
 export interface Fine {
   id: string;

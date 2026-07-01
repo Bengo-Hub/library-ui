@@ -77,9 +77,9 @@ export const ebooksApi = {
   purchase: (orgSlug: string, id: string, memberId: string) =>
     apiClient.post<EbookPurchaseResult>(`${libBase(orgSlug)}/ebooks/${id}/purchase`, { member_id: memberId }),
 
-  /** Token-gated download of a paid purchase. */
+  /** Token-gated download of a paid purchase — streams binary file. */
   download: (orgSlug: string, id: string, token: string) =>
-    apiClient.get<{ file_url: string; format: EbookFormat; download_count: number }>(`${libBase(orgSlug)}/ebooks/${id}/download`, { token }),
+    apiClient.getBlob(`${libBase(orgSlug)}/ebooks/${id}/download`, { token }),
 };
 
 export interface EbookPurchaseResult {
@@ -87,4 +87,5 @@ export interface EbookPurchaseResult {
   intent_id: string;
   initiate_url: string;
   amount: string;
+  download_token: string;
 }

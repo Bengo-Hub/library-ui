@@ -42,7 +42,15 @@ export function useSaveReadPosition(orgSlug: string) {
 }
 
 export function usePurchaseEbook(orgSlug: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, memberId }: { id: string; memberId: string }) => ebooksApi.purchase(orgSlug, id, memberId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'list', orgSlug] }),
+  });
+}
+
+export function useDownloadEbook(orgSlug: string) {
+  return useMutation({
+    mutationFn: ({ id, token }: { id: string; token: string }) => ebooksApi.download(orgSlug, id, token),
   });
 }

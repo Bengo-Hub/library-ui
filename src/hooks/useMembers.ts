@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { membersApi, type MemberInput, type MemberStatus, type MemberTierInput, type LoanPolicyInput } from '@/lib/api/members';
+import { membersApi, type MemberInput, type MemberStatus, type MemberTierInput, type LoanPolicyInput, type NotificationPref } from '@/lib/api/members';
 
 const KEY = 'members';
 
@@ -108,5 +108,21 @@ export function useDeleteMember(orgSlug: string) {
   return useMutation({
     mutationFn: (id: string) => membersApi.delete(orgSlug, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'list', orgSlug] }),
+  });
+}
+
+export function useNotificationPrefs(orgSlug: string, memberId: string) {
+  return useQuery({
+    queryKey: [KEY, 'notif-prefs', orgSlug, memberId],
+    queryFn: () => membersApi.getNotificationPrefs(orgSlug, memberId),
+    enabled: !!orgSlug && !!memberId,
+  });
+}
+
+export function useUpdateNotificationPrefs(orgSlug: string, memberId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (prefs: NotificationPref[]) => membersApi.updateNotificationPrefs(orgSlug, memberId, prefs),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'notif-prefs', orgSlug, memberId] }),
   });
 }

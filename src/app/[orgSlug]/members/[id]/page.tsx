@@ -4,9 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BookOpen, Ban, CheckCircle2, CircleDollarSign, CreditCard, Mail, MapPin, Pencil, Phone, RotateCcw, Trash2, User } from 'lucide-react';
-import { membersApi } from '@/lib/api/members';
-import { useMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
+import { ArrowLeft, Bell, BookOpen, Ban, CheckCircle2, CircleDollarSign, CreditCard, Mail, MapPin, Pencil, Phone, RotateCcw, Trash2, User } from 'lucide-react';
+import { membersApi, NOTIFICATION_EVENT_LABELS } from '@/lib/api/members';
+import { useMember, useUpdateMember, useIssueMembershipFee, useDeleteMember, useNotificationPrefs, useUpdateNotificationPrefs } from '@/hooks/useMembers';
 import { useMemberLoans, useRenew } from '@/hooks/useCirculation';
 import { useMemberFines, useWaiveFine, usePayFine } from '@/hooks/useFines';
 import { PageHeader, Skeleton, StatCard } from '@/components/ui/page';
@@ -22,7 +22,7 @@ import type { Fine } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney, isOverdue } from '@/lib/format';
 
-type Tab = 'loans' | 'fines';
+type Tab = 'loans' | 'fines' | 'notifications';
 
 export default function MemberDetailPage() {
   const params = useParams();
@@ -33,6 +33,8 @@ export default function MemberDetailPage() {
   const { data: member, isLoading } = useMember(orgSlug, id);
   const { data: loans = [], isLoading: loansLoading } = useMemberLoans(orgSlug, id);
   const { data: fines = [], isLoading: finesLoading } = useMemberFines(orgSlug, id);
+  const { data: notifPrefs = [] } = useNotificationPrefs(orgSlug, id);
+  const updatePrefs = useUpdateNotificationPrefs(orgSlug, id);
   const updateMember = useUpdateMember(orgSlug);
   const deleteMember = useDeleteMember(orgSlug);
   const renew = useRenew(orgSlug);
@@ -110,6 +112,15 @@ export default function MemberDetailPage() {
     }
   }
 
+  function togglePref(eventType: string, channel: string, currentValue: boolean) {
+    const updated = notifPrefs.map((p) =>
+      p.event_type === eventType && p.channel === (channel as 'EMAIL' | 'SMS' | 'PUSH')
+        ? { ...p, is_enabled: !currentValue }
+        : p,
+    );
+    updatePrefs.mutate(updated);
+  }
+
   async function handleDelete() {
     try {
       await deleteMember.mutateAsync(id);
@@ -183,6 +194,7 @@ export default function MemberDetailPage() {
         options={[
           { value: 'loans', label: 'Loans', count: loans.length },
           { value: 'fines', label: 'Fines', count: fines.length },
+          { value: 'notifications', label: 'Notifications' },
         ]}
       />
 
@@ -239,6 +251,51 @@ export default function MemberDetailPage() {
               ))}
             </ul>
           )}
+        </Card>
+      )}
+
+      {tab === 'notifications' && (
+        <Card>
+          <div className="p-5">
+            <p className="text-sm text-muted-foreground mb-4">Configure which notifications this patron receives per channel. Defaults are opt-in.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left font-semibold py-2 pr-4 w-full">Event</th>
+                    {(['EMAIL', 'SMS', 'PUSH'] as const).map((ch) => (
+                      <th key={ch} className="text-center font-semibold py-2 px-4 whitespace-nowrap">{ch}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {Object.entries(NOTIFICATION_EVENT_LABELS).map(([evt, label]) => (
+                    <tr key={evt}>
+                      <td className="py-2.5 pr-4 text-muted-foreground">{label}</td>
+                      {(['EMAIL', 'SMS', 'PUSH'] as const).map((ch) => {
+                        const pref = notifPrefs.find((p) => p.event_type === evt && p.channel === ch);
+                        const enabled = pref?.is_enabled ?? true;
+                        return (
+                          <td key={ch} className="py-2.5 px-4 text-center">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={enabled}
+                              onClick={() => togglePref(evt, ch, enabled)}
+                              disabled={updatePrefs.isPending}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-primary' : 'bg-muted'}`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </Card>
       )}
 
