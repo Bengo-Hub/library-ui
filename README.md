@@ -1,6 +1,6 @@
 # Library UI
 
-BengoBox Library Management System frontend — the OPAC, cataloging, circulation desk, members + fines, and the in-browser e-book reader for `library-api`. Next.js 16 (App Router) + React 19, multi-tenant via `[orgSlug]`, SSO/PKCE auth, PWA-enabled.
+Codevertex Library Management System frontend — the OPAC, cataloging, circulation desk, members + fines, and the in-browser e-book reader for `library-api`. Next.js 16 (App Router) + React 19, multi-tenant via `[orgSlug]`, SSO/PKCE auth, PWA-enabled.
 
 ## Highlights
 
