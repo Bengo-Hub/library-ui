@@ -1,11 +1,22 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth";
 import type { SubscriptionInfo } from "@/lib/auth/subscription";
 import { fetchSubscriptionInfo } from "@/lib/auth/subscription";
 import { useSubscriptionStore } from "@/store/subscription";
-import type { SubscriptionEntitlements } from "@bengo-hub/shared-ui-lib/subscription";
+import type { SubscriptionEntitlements, FeatureCatalogEntry } from "@bengo-hub/shared-ui-lib/subscription";
+
+/** Shape of one entry in the platform feature-catalog proxy response. */
+interface CatalogItem {
+  featureCode: string;
+  label?: string;
+  serviceTag?: string;
+  minPlanCode?: string;
+  minTierLabel?: string;
+  minTierOrder?: number;
+}
 
 /**
  * Decode the claims payload of a JWT client-side (no signature verification — purely to read
@@ -136,10 +147,38 @@ export function useSubscriptionEntitlements(): SubscriptionEntitlements {
   const storeFeatures = useSubscriptionStore((s) => s.features);
   const storeLimits = useSubscriptionStore((s) => s.limits);
   const storeStatus = useSubscriptionStore((s) => s.status);
+  const storePlan = useSubscriptionStore((s) => s.plan);
   const storeHydrated = useSubscriptionStore((s) => s.hydrated);
 
   const accessToken = session?.accessToken;
   const claims = useMemo(() => decodeJwtClaims(accessToken), [accessToken]);
+
+  // The platform feature catalog (minPlanCode/minTierLabel/minTierOrder per feature) is static-ish →
+  // fetch once, long cache. Drives the tier-aware upgrade prompt in the shared <FeatureLock>.
+  const { data: catalogData } = useQuery({
+    queryKey: ["features-catalog"],
+    queryFn: async () => {
+      const res = await fetch("/api/features-catalog");
+      if (!res.ok) return { features: [] as CatalogItem[] };
+      return (await res.json()) as { features: CatalogItem[] };
+    },
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+
+  const catalog = useMemo<Record<string, FeatureCatalogEntry>>(() => {
+    const map: Record<string, FeatureCatalogEntry> = {};
+    for (const f of catalogData?.features ?? []) {
+      map[f.featureCode] = {
+        minPlanCode: f.minPlanCode,
+        minTierLabel: f.minTierLabel,
+        minTierOrder: f.minTierOrder,
+        serviceTag: f.serviceTag,
+        label: f.label,
+      };
+    }
+    return map;
+  }, [catalogData]);
 
   return useMemo<SubscriptionEntitlements>(() => {
     const tenantClaims = (claims.tenant as Record<string, unknown> | undefined) ?? claims;
@@ -175,6 +214,17 @@ export function useSubscriptionEntitlements(): SubscriptionEntitlements {
     // Loading until either entitlements have resolved from the proxy or the offline store hydrated.
     const isLoading = subscriptionInfo === undefined && !storeHydrated && !isExempt;
 
-    return { features, limits, isExempt, status, isLoading };
-  }, [claims, user, subscriptionInfo, storeFeatures, storeLimits, storeStatus, storeHydrated]);
+    // planCode / tierOrder feed the shared tier-aware FeatureLock ("Upgrade to <tier>").
+    const planCode =
+      (tenantClaims.subscription_plan as string | undefined) ??
+      subscriptionInfo?.planCode ??
+      storePlan ??
+      null;
+    const tierOrder =
+      (typeof tenantClaims.tier_order === "number" ? tenantClaims.tier_order : undefined) ??
+      subscriptionInfo?.tierOrder ??
+      null;
+
+    return { features, limits, isExempt, status, isLoading, planCode, tierOrder, catalog };
+  }, [claims, user, subscriptionInfo, storeFeatures, storeLimits, storeStatus, storePlan, storeHydrated, catalog]);
 }

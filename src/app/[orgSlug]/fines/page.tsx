@@ -19,7 +19,7 @@ import { MembershipPaymentModal, type PaymentIntent } from '@/components/library
 import { type Fine, type FineStatus } from '@/lib/api/fines';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney } from '@/lib/format';
-import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
+import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 import { Can } from '@/components/auth/Can';
 
 const STATUS_VARIANT: Record<FineStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
@@ -103,7 +103,7 @@ export default function FinesPage() {
         title="Fines & Fees"
         subtitle="Outstanding balances and membership fees"
         icon={<CircleDollarSign className="h-5 w-5" />}
-        actions={<Can perm="library.membership_fees.add"><FeatureGate feature="library_fines"><Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button></FeatureGate></Can>}
+        actions={<Can perm="library.membership_fees.add"><FeatureLock feature="library_fines" mode="block"><Button variant="outline" className="gap-1.5" onClick={() => setFeeOpen(true)}><Plus className="h-4 w-4" /> Charge Membership Fee</Button></FeatureLock></Can>}
       />
 
       <CapsuleTabs

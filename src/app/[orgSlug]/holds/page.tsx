@@ -19,7 +19,7 @@ import { MemberPicker } from '@/components/library/MemberPicker';
 import type { Hold, HoldStatus } from '@/lib/api/holds';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
-import { FeatureGate } from '@bengo-hub/shared-ui-lib/subscription';
+import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 
 const STATUS_VARIANT: Record<HoldStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   pending: 'warning', ready: 'success', fulfilled: 'outline', cancelled: 'outline', expired: 'error',
@@ -116,7 +116,7 @@ export default function HoldsPage() {
         title="Holds & Reservations"
         subtitle="Manage the reservation queue"
         icon={<BookMarked className="h-5 w-5" />}
-        actions={<Can perm="library.holds.place"><FeatureGate feature="library_holds"><Button className="gap-1.5" onClick={() => setStep('pick-bib')}><Plus className="h-4 w-4" /> Place Hold</Button></FeatureGate></Can>}
+        actions={<Can perm="library.holds.place"><FeatureLock feature="library_holds" mode="block"><Button className="gap-1.5" onClick={() => setStep('pick-bib')}><Plus className="h-4 w-4" /> Place Hold</Button></FeatureLock></Can>}
       />
 
       <CapsuleTabs
