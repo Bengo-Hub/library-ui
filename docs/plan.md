@@ -3,7 +3,7 @@
 **Last updated:** 2026-06-26
 **Framework:** Next.js 16 (App Router) + React 19 + TypeScript
 **Styling:** Tailwind CSS 4 + shadcn (on Base UI)
-**Backend:** library-api (`libraryapi.codevertexitsolutions.com`, port 4010)
+**Backend:** library-api (`libraryapi.codevertexafrica.com`, port 4010)
 **Auth:** SSO via auth-ui (OIDC/OAuth2 + PKCE)
 
 ---

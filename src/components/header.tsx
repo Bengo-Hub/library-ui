@@ -13,10 +13,10 @@ import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 
-const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexitsolutions.com';
-const TREASURY_URL = process.env.NEXT_PUBLIC_TREASURY_UI_URL ?? 'https://books.codevertexitsolutions.com';
-const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexitsolutions.com';
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexitsolutions.com';
+const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com';
+const TREASURY_URL = process.env.NEXT_PUBLIC_TREASURY_UI_URL ?? 'https://books.codevertexafrica.com';
+const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com';
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com';
 
 const SERVICES = [
   { label: 'POS',            href: (slug: string) => `${POS_URL}/${slug}`,      Icon: ShoppingCart },

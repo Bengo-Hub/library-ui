@@ -31,8 +31,8 @@ pnpm type-check   # tsc --noEmit
 
 | Var | Purpose | Default |
 |-----|---------|---------|
-| `NEXT_PUBLIC_API_URL` | library-api base | `https://libraryapi.codevertexitsolutions.com` |
-| `NEXT_PUBLIC_SSO_URL` | auth-ui SSO base | `https://sso.codevertexitsolutions.com` |
+| `NEXT_PUBLIC_API_URL` | library-api base | `https://libraryapi.codevertexafrica.com` |
+| `NEXT_PUBLIC_SSO_URL` | auth-ui SSO base | `https://sso.codevertexafrica.com` |
 | `NEXT_PUBLIC_SSO_CLIENT_ID` | OIDC client id | `library-ui` |
 | `NEXT_PUBLIC_TENANT_SLUG` | optional default tenant | — |
 
@@ -54,7 +54,7 @@ docs/                  architecture, plan, ux-ui, use-case-pages, sprints
 
 ## Deploy
 
-Deployed at `https://library.codevertexitsolutions.com`. CI on push to `main` (build.sh + Dockerfile + `.github/workflows/deploy.yml`; Helm values at `devops-k8s/apps/library-ui/values.yaml`).
+Deployed at `https://library.codevertexafrica.com`. CI on push to `main` (build.sh + Dockerfile + `.github/workflows/deploy.yml`; Helm values at `devops-k8s/apps/library-ui/values.yaml`).
 
 ## Documentation
 

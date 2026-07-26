@@ -34,7 +34,7 @@ import { useEntitlements } from '@bengo-hub/shared-ui-lib/subscription';
 import { isKnownFeature, requiredPlanLabel } from '@/lib/subscription/feature-catalog';
 import { usePermissions } from '@/hooks/usePermissions';
 
-const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexitsolutions.com';
+const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
 interface SidebarProps {
   open?: boolean;

@@ -4,8 +4,8 @@
 **Language:** TypeScript (strict)
 **Styling:** Tailwind CSS 4 + shadcn (on Base UI — not Radix)
 **State:** Zustand (global) + TanStack Query v5 (server) + Axios
-**Backend:** library-api at `libraryapi.codevertexitsolutions.com`
-**Auth:** SSO via auth-ui (OIDC/OAuth2 + PKCE, `sso.codevertexitsolutions.com`)
+**Backend:** library-api at `libraryapi.codevertexafrica.com`
+**Auth:** SSO via auth-ui (OIDC/OAuth2 + PKCE, `sso.codevertexafrica.com`)
 **Last updated:** 2026-06-26
 **Status:** Phase 1 MVP shipped — all pages data-integrated.
 
@@ -81,7 +81,7 @@ app/
 
 A single Axios instance wrapped by `ApiClient`:
 
-- `baseURL` = `NEXT_PUBLIC_API_URL` (default `libraryapi.codevertexitsolutions.com`); paths are built as `/api/v1/{orgSlug}/library/…`.
+- `baseURL` = `NEXT_PUBLIC_API_URL` (default `libraryapi.codevertexafrica.com`); paths are built as `/api/v1/{orgSlug}/library/…`.
 - **Request interceptor:** attaches `Authorization: Bearer <token>`; sends `X-Tenant-ID`/`X-Tenant-Slug` (suppressed for platform owners) and `X-Outlet-ID`; drops the JSON `Content-Type` for `FormData` (multipart e-book/cover uploads).
 - **Response interceptor:**
   - **401** → attempt a single token refresh (`token-refresh.ts`) and retry; on failure run the registered `on401` callback (clear caches + logout).
