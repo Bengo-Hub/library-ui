@@ -77,8 +77,8 @@ jobs:
           REGISTRY_SERVER: docker.io
           REGISTRY_NAMESPACE: codevertex
           APP_NAME: library-ui
-          NEXT_PUBLIC_API_URL: https://libraryapi.codevertexitsolutions.com
-          NEXT_PUBLIC_SSO_URL: https://sso.codevertexitsolutions.com
+          NEXT_PUBLIC_API_URL: https://libraryapi.codevertexafrica.com
+          NEXT_PUBLIC_SSO_URL: https://sso.codevertexafrica.com
           GIT_USER: ${{ secrets.GIT_USER || 'Library UI Bot' }}
           GIT_EMAIL: ${{ secrets.GIT_EMAIL || 'dev@bengobox.com' }}
         run: |
