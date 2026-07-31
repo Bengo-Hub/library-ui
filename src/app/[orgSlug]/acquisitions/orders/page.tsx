@@ -10,6 +10,7 @@ import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
+import { Pagination } from '@/components/ui/pagination';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
 import { type PurchaseOrder, type POStatus, type POInput } from '@/lib/api/acquisitions';
@@ -31,12 +32,15 @@ const STATUS_VARIANT: Record<POStatus, 'default' | 'success' | 'warning' | 'erro
 
 const EMPTY: POInput = { vendor_id: '', currency_code: 'KES', tax: 0 };
 
+const PAGE_SIZE = 20;
+
 export default function OrdersPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
   const [statusFilter, setStatusFilter] = useState<POStatus | ''>('');
-  const { data, isLoading } = useOrders(orgSlug, { status: statusFilter || undefined });
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useOrders(orgSlug, { status: statusFilter || undefined, page, limit: PAGE_SIZE });
   const { data: vendorsData } = useVendors(orgSlug, true);
   const createOrder = useCreateOrder(orgSlug);
 
@@ -45,6 +49,7 @@ export default function OrdersPage() {
 
   const orders = data?.data ?? [];
   const vendors = vendorsData?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   function set(key: keyof POInput) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -110,7 +115,7 @@ export default function OrdersPage() {
       <CapsuleTabs
         options={STATUS_TABS}
         value={statusFilter}
-        onChange={(v) => setStatusFilter(v as POStatus | '')}
+        onChange={(v) => { setStatusFilter(v as POStatus | ''); setPage(1); }}
         className="mb-4"
       />
 
@@ -119,15 +124,18 @@ export default function OrdersPage() {
           <EmptyState icon={<ShoppingCart className="h-12 w-12" />} title="No orders" description="Create a purchase order to order items from a vendor." action={<Button onClick={() => setOpen(true)} className="gap-1.5"><Plus className="h-4 w-4" /> New PO</Button>} />
         </Card>
       ) : (
-        <DataTable
-          columns={columns}
-          rows={orders}
-          rowKey={(o) => o.id}
-          loading={isLoading}
-          storageKey="library-po"
-          showExportCsv
-          exportFileName="purchase-orders"
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={orders}
+            rowKey={(o) => o.id}
+            loading={isLoading}
+            storageKey="library-po"
+            showExportCsv
+            exportFileName="purchase-orders"
+          />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </>
       )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New Purchase Order">

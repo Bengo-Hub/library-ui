@@ -10,6 +10,7 @@ import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
+import { Pagination } from '@/components/ui/pagination';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
 import { type AcquisitionInvoice, type InvoiceStatus, type InvoiceInput } from '@/lib/api/acquisitions';
@@ -29,12 +30,15 @@ const STATUS_VARIANT: Record<InvoiceStatus, 'default' | 'success' | 'warning' | 
 
 const EMPTY: InvoiceInput = { vendor_id: '', amount: 0 };
 
+const PAGE_SIZE = 20;
+
 export default function InvoicesPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | ''>('');
-  const { data, isLoading } = useInvoices(orgSlug, { status: statusFilter || undefined });
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useInvoices(orgSlug, { status: statusFilter || undefined, page, limit: PAGE_SIZE });
   const { data: vendorsData } = useVendors(orgSlug);
   const createInvoice = useCreateInvoice(orgSlug);
 
@@ -43,6 +47,7 @@ export default function InvoicesPage() {
 
   const invoices = data?.data ?? [];
   const vendors = vendorsData?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
   function set(key: keyof InvoiceInput) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -110,7 +115,7 @@ export default function InvoicesPage() {
       <CapsuleTabs
         options={STATUS_TABS}
         value={statusFilter}
-        onChange={(v) => setStatusFilter(v as InvoiceStatus | '')}
+        onChange={(v) => { setStatusFilter(v as InvoiceStatus | ''); setPage(1); }}
         className="mb-4"
       />
 
@@ -119,15 +124,18 @@ export default function InvoicesPage() {
           <EmptyState icon={<FileText className="h-12 w-12" />} title="No invoices" description="Create an invoice to submit a vendor bill for payment." action={<Button onClick={() => setOpen(true)} className="gap-1.5"><Plus className="h-4 w-4" /> New Invoice</Button>} />
         </Card>
       ) : (
-        <DataTable
-          columns={columns}
-          rows={invoices}
-          rowKey={(inv) => inv.id}
-          loading={isLoading}
-          storageKey="library-acq-invoices"
-          showExportCsv
-          exportFileName="acquisition-invoices"
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={invoices}
+            rowKey={(inv) => inv.id}
+            loading={isLoading}
+            storageKey="library-acq-invoices"
+            showExportCsv
+            exportFileName="acquisition-invoices"
+          />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </>
       )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New Acquisition Invoice">

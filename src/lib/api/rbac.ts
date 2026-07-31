@@ -30,14 +30,17 @@ export interface LibraryBranch {
 }
 
 export const rbacApi = {
+  // No paging UI here — the roles list and (especially) the ~70-entry permission catalog are
+  // rendered as a full matrix, so request the shared-pagination max explicitly rather than
+  // letting them silently shrink to the default page size now that the backend paginates them.
   listRoles: async (orgSlug: string): Promise<Role[]> => {
-    const res = await apiClient.get<{ data?: Role[] } | Role[]>(`${libBase(orgSlug)}/rbac/roles`);
+    const res = await apiClient.get<{ data?: Role[] } | Role[]>(`${libBase(orgSlug)}/rbac/roles`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   // API returns either bare codes or {code,label} objects — normalize to code strings (the
   // matrix groups by code.split('.')). Was the source of the "e.split is not a function" crash.
   listPermissions: async (orgSlug: string): Promise<string[]> => {
-    const res = await apiClient.get<{ data?: Array<string | { code: string }> } | Array<string | { code: string }>>(`${libBase(orgSlug)}/rbac/permissions`);
+    const res = await apiClient.get<{ data?: Array<string | { code: string }> } | Array<string | { code: string }>>(`${libBase(orgSlug)}/rbac/permissions`, { limit: 100 });
     const arr = Array.isArray(res) ? res : (res.data ?? []);
     return arr.map((p) => (typeof p === 'string' ? p : p?.code)).filter((c): c is string => typeof c === 'string' && c.length > 0);
   },
@@ -48,7 +51,9 @@ export const rbacApi = {
   deleteRole: (orgSlug: string, id: string) =>
     apiClient.delete<void>(`${libBase(orgSlug)}/rbac/roles/${id}`),
   listTeam: async (orgSlug: string): Promise<TeamMember[]> => {
-    const res = await apiClient.get<{ data?: TeamMember[] } | TeamMember[]>(`${libBase(orgSlug)}/team`);
+    // No paging UI here — request the shared-pagination max explicitly, same reasoning as
+    // listRoles/listPermissions above.
+    const res = await apiClient.get<{ data?: TeamMember[] } | TeamMember[]>(`${libBase(orgSlug)}/team`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   assignRole: (orgSlug: string, userId: string, roles: string[]) =>

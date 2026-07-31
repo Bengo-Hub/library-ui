@@ -23,11 +23,14 @@ export interface AuthorizedValueInput {
 
 export const authorizedValuesApi = {
   listCategories: async (orgSlug: string): Promise<string[]> => {
-    const res = await apiClient.get<{ data: string[] }>(`${libBase(orgSlug)}/admin/authorized-values/categories`);
+    // No paging UI here — request the shared-pagination max explicitly so the category list
+    // doesn't silently shrink to the default page size now that the backend paginates it.
+    const res = await apiClient.get<{ data: string[] }>(`${libBase(orgSlug)}/admin/authorized-values/categories`, { limit: 100 });
     return res?.data ?? [];
   },
   list: async (orgSlug: string, category?: string): Promise<Paginated<AuthorizedValue>> => {
-    const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+    // No paging UI here either — same reasoning as listCategories above.
+    const qs = `?limit=100${category ? `&category=${encodeURIComponent(category)}` : ''}`;
     const res = await apiClient.get<Paginated<AuthorizedValue> | AuthorizedValue[]>(
       `${libBase(orgSlug)}/admin/authorized-values${qs}`
     );

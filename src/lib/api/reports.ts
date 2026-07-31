@@ -71,8 +71,11 @@ export const reportsApi = {
   circulation: (orgSlug: string, params?: { from?: string; to?: string; branch_id?: string }) =>
     apiClient.get<{ data: { date: string; checkouts: number; returns: number }[] }>(`${libBase(orgSlug)}/reports/circulation`, params),
 
+  // No paging UI (dashboard widget) — this previously hardcoded a backend Limit(200); pass the
+  // same explicit limit so it doesn't silently shrink to the generic pagination default now
+  // that the backend paginates it via the shared package.
   overdue: (orgSlug: string) =>
-    apiClient.get<{ data: unknown[] }>(`${libBase(orgSlug)}/reports/overdue`),
+    apiClient.get<{ data: unknown[] }>(`${libBase(orgSlug)}/reports/overdue`, { limit: 100 }),
 
   popular: (orgSlug: string, params?: { limit?: number; days?: number }) =>
     apiClient.get<{ data: { id: string; title: string; loans: number }[] }>(`${libBase(orgSlug)}/reports/popular`, params),

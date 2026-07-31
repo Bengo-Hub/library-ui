@@ -59,7 +59,10 @@ export const DUE_DATE_MODES = [
 
 export const circulationRulesApi = {
   list: async (orgSlug: string, branchId?: string): Promise<Paginated<CirculationRule>> => {
-    const qs = branchId ? `?branch_id=${branchId}` : '';
+    // No paging UI here — this renders as a full matrix, so request the shared-pagination max
+    // explicitly rather than letting it silently shrink to the default page size now that the
+    // backend paginates it.
+    const qs = `?limit=100${branchId ? `&branch_id=${branchId}` : ''}`;
     const res = await apiClient.get<Paginated<CirculationRule> | CirculationRule[]>(
       `${libBase(orgSlug)}/admin/circulation-rules${qs}`
     );

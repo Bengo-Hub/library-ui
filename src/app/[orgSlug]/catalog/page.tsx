@@ -2,28 +2,32 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
-import { Library, Plus, Search, SlidersHorizontal, ScanLine, Eye } from 'lucide-react';
-import { useCatalogSearch, useCatalogFacets } from '@/hooks/useCatalog';
+import { toast } from 'sonner';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Library, Plus, Search, SlidersHorizontal, ScanLine, Eye, BookText, Pencil, Trash2 } from 'lucide-react';
+import { useCatalogSearch, useCatalogFacets, useDeleteBib } from '@/hooks/useCatalog';
 import { useDebounce } from '@/hooks/useDebounce';
-import { BIB_FORMATS, type BibFormat } from '@/lib/api/catalog';
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
-import { Button } from '@/components/ui/base';
-import { Pagination } from '@/components/ui/pagination';
+import { BIB_FORMATS, type BibFormat, type BibRecord } from '@/lib/api/catalog';
+import { PageHeader, EmptyState } from '@/components/ui/page';
+import { Button, Badge } from '@/components/ui/base';
+import { DataTable, type DataTableColumn, type BulkAction } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Dialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
-import { CoverThumb } from '@/components/library/CoverThumb';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 import { useImagePreview, ImagePreview } from '@bengo-hub/shared-ui-lib';
 import { Can } from '@/components/auth/Can';
+import { usePermissions } from '@/hooks/usePermissions';
+import { apiErrorMessage } from '@/lib/api/error-message';
 
-const PAGE_SIZE = 18;
+const PAGE_SIZE = 20;
 
 function CatalogContent() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [q, setQ] = useState(searchParams?.get('q') ?? '');
@@ -33,8 +37,14 @@ function CatalogContent() {
   const [availableOnly, setAvailableOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [scanOpen, setScanOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [toDelete, setToDelete] = useState<BibRecord | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const debouncedQ = useDebounce(q, 350);
   const { openPreview, previewProps } = useImagePreview();
+  const { can } = usePermissions();
+  const canDelete = can('library.catalog.delete');
+  const deleteBib = useDeleteBib(orgSlug);
 
   useEffect(() => { setPage(1); }, [debouncedQ, format, subjectId, branchId, availableOnly]);
 
@@ -49,7 +59,103 @@ function CatalogContent() {
   });
 
   const bibs = data?.data ?? [];
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    try {
+      await deleteBib.mutateAsync(toDelete.id);
+      toast.success('Title deleted');
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to delete title'));
+    } finally {
+      setToDelete(null);
+    }
+  }
+
+  async function confirmBulkDelete(ids: string[]) {
+    const results = await Promise.allSettled(ids.map((id) => deleteBib.mutateAsync(id)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    setSelected(new Set());
+    setBulkDeleteOpen(false);
+    if (failed > 0) toast.error(`${failed} of ${ids.length} titles could not be deleted`);
+    else toast.success(`${ids.length} title${ids.length === 1 ? '' : 's'} deleted`);
+  }
+
+  const bulkActions: BulkAction[] = canDelete
+    ? [{
+        key: 'delete', label: 'Delete', icon: <Trash2 className="h-4 w-4" />, variant: 'destructive',
+        onClick: () => setBulkDeleteOpen(true),
+      }]
+    : [];
+
+  // No cover image is ever rendered inline in this table — at 20+ rows/page, eagerly loading
+  // that many full-size (or even thumbnail) images was real memory/bandwidth pressure. "View
+  // cover" loads a cover on demand into the shared ImagePreview modal instead.
+  const columns: DataTableColumn<BibRecord>[] = [
+    {
+      key: 'cover', header: '', align: 'center', exportable: false, sortable: false,
+      render: (bib) => (
+        <button
+          type="button"
+          title={bib.cover_url || bib.cover_back_url ? 'View cover' : 'No cover uploaded'}
+          aria-label="View cover"
+          disabled={!bib.cover_url && !bib.cover_back_url}
+          onClick={(e) => {
+            e.stopPropagation();
+            openPreview({
+              src: bib.cover_url ?? bib.cover_back_url ?? '',
+              secondarySrc: bib.cover_url ? bib.cover_back_url : undefined,
+              title: bib.title,
+            });
+          }}
+          className="h-9 w-9 flex items-center justify-center rounded-lg border border-border text-muted-foreground enabled:hover:text-foreground enabled:hover:border-primary/40 transition-colors disabled:opacity-30"
+        >
+          {bib.cover_url || bib.cover_back_url ? <Eye className="h-4 w-4" /> : <BookText className="h-4 w-4" />}
+        </button>
+      ),
+    },
+    {
+      key: 'title', header: 'Title', primary: true, sortable: true,
+      accessor: (bib) => bib.title,
+      render: (bib) => (
+        <>
+          <Link href={`/${orgSlug}/catalog/${bib.id}`} className="font-medium hover:text-primary line-clamp-1">{bib.title}</Link>
+          {bib.author && <p className="text-xs text-muted-foreground truncate">{bib.author}</p>}
+        </>
+      ),
+    },
+    {
+      key: 'format', header: 'Format', filterable: true,
+      accessor: (bib) => bib.format,
+      render: (bib) => <Badge variant="outline">{BIB_FORMATS.find((f) => f.value === bib.format)?.label ?? bib.format}</Badge>,
+    },
+    {
+      key: 'isbn', header: 'ISBN', accessor: (bib) => bib.isbn ?? '',
+      render: (bib) => <span className="font-mono text-xs">{bib.isbn ?? '—'}</span>,
+    },
+    {
+      key: 'availability', header: 'Availability', sortable: true,
+      accessor: (bib) => bib.available_copies ?? 0,
+      render: (bib) => <AvailabilityBadge bib={bib} />,
+    },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, sortable: false, mobileAction: true,
+      render: (bib) => (
+        <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+          <Can perm="library.catalog.change">
+            <Link href={`/${orgSlug}/cataloging?id=${bib.id}`}>
+              <Button variant="ghost" size="icon" title="Edit"><Pencil className="h-4 w-4" /></Button>
+            </Link>
+          </Can>
+          <Can perm="library.catalog.delete">
+            <Button variant="ghost" size="icon" title="Delete" onClick={() => setToDelete(bib)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </Can>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -141,58 +247,54 @@ function CatalogContent() {
         )}
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="h-64" />)}
-        </div>
-      ) : bibs.length === 0 ? (
-        <EmptyState
-          icon={<Library className="h-12 w-12" />}
-          title="No titles found"
-          description={debouncedQ ? `Nothing matched "${debouncedQ}".` : 'Your catalog is empty. Start by cataloging a title.'}
-          action={<Link href={`/${orgSlug}/cataloging`}><Button className="gap-1.5"><Plus className="h-4 w-4" /> Add Title</Button></Link>}
-        />
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {bibs.map((bib) => (
-            <Link
-              key={bib.id}
-              href={`/${orgSlug}/catalog/${bib.id}`}
-              className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
-            >
-              <CoverThumb url={bib.cover_url} title={bib.title} className="aspect-[3/4] w-full" />
-              {(bib.cover_url || bib.cover_back_url) && (
-                <button
-                  type="button"
-                  title="View cover"
-                  aria-label="View cover"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openPreview({
-                      src: bib.cover_url ?? bib.cover_back_url ?? '',
-                      secondarySrc: bib.cover_url ? bib.cover_back_url : undefined,
-                      title: bib.title,
-                    });
-                  }}
-                  className="absolute top-2 right-2 z-10 h-8 w-8 flex items-center justify-center rounded-lg bg-background/80 backdrop-blur text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shadow-sm"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-              )}
-              <div className="p-3 space-y-1.5">
-                <p className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">{bib.title}</p>
-                {bib.author && <p className="text-xs text-muted-foreground truncate">{bib.author}</p>}
-                <AvailabilityBadge bib={bib} />
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      <DataTable
+        columns={columns}
+        rows={bibs}
+        rowKey={(bib) => bib.id}
+        loading={isLoading}
+        onRowClick={(bib) => router.push(`/${orgSlug}/catalog/${bib.id}`)}
+        emptyState={
+          <EmptyState
+            icon={<Library className="h-12 w-12" />}
+            title="No titles found"
+            description={debouncedQ ? `Nothing matched "${debouncedQ}".` : 'Your catalog is empty. Start by cataloging a title.'}
+            action={<Link href={`/${orgSlug}/cataloging`}><Button className="gap-1.5"><Plus className="h-4 w-4" /> Add Title</Button></Link>}
+          />
+        }
+        storageKey="library-catalog"
+        selectable={canDelete}
+        selected={selected}
+        onSelectedChange={setSelected}
+        bulkActions={bulkActions}
+        showExportCsv
+        exportFileName="library-catalog"
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        total={total}
+      />
 
       <ImagePreview {...previewProps} />
+
+      <ConfirmDialog
+        open={!!toDelete}
+        title="Delete this title?"
+        description={`Permanently remove "${toDelete?.title ?? ''}" from the catalog. Blocked if copies or active loans still reference it.`}
+        variant="danger"
+        confirmLabel="Delete title"
+        onConfirm={confirmDelete}
+        onCancel={() => setToDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        title={`Delete ${selected.size} title${selected.size === 1 ? '' : 's'}?`}
+        description="Permanently remove the selected titles from the catalog. Any that still have copies or active loans will fail and be reported."
+        variant="danger"
+        confirmLabel="Delete selected"
+        onConfirm={() => confirmBulkDelete(Array.from(selected))}
+        onCancel={() => setBulkDeleteOpen(false)}
+      />
     </div>
   );
 }

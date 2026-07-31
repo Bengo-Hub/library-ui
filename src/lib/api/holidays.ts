@@ -21,7 +21,10 @@ export const holidaysApi = {
     const qs = new URLSearchParams();
     if (params?.branch_id) qs.set('branch_id', params.branch_id);
     if (params?.year) qs.set('year', String(params.year));
-    const query = qs.toString() ? `?${qs}` : '';
+    // No paging UI here — request the shared-pagination max explicitly so the holiday list
+    // doesn't silently shrink to the default page size now that the backend paginates it.
+    qs.set('limit', '100');
+    const query = `?${qs}`;
     const res = await apiClient.get<Paginated<LibraryHoliday> | LibraryHoliday[]>(
       `${libBase(orgSlug)}/admin/holidays${query}`
     );

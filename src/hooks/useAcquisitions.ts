@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   acquisitionsApi,
   type VendorInput,
@@ -100,12 +100,13 @@ export function useCreateFund(orgSlug: string, budgetId: string) {
 
 // ── Purchase Orders ───────────────────────────────────────────────────────────
 
-export function useOrders(orgSlug: string, params?: { status?: POStatus; vendor_id?: string }) {
+export function useOrders(orgSlug: string, params?: { status?: POStatus; vendor_id?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: [ORDERS, orgSlug, params],
     queryFn: () => acquisitionsApi.listOrders(orgSlug, params),
     enabled: !!orgSlug,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -172,12 +173,13 @@ export function useReceiveLine(orgSlug: string, orderId: string) {
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 
-export function useInvoices(orgSlug: string, params?: { status?: InvoiceStatus; vendor_id?: string }) {
+export function useInvoices(orgSlug: string, params?: { status?: InvoiceStatus; vendor_id?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: [INVOICES, orgSlug, params],
     queryFn: () => acquisitionsApi.listInvoices(orgSlug, params),
     enabled: !!orgSlug,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 

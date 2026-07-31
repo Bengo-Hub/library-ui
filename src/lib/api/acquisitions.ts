@@ -164,7 +164,9 @@ export interface InvoiceInput {
 export const acquisitionsApi = {
   // Vendors
   listVendors: async (orgSlug: string, params?: { active?: boolean }): Promise<Paginated<Vendor>> => {
-    const qs = params?.active ? '?active=true' : '';
+    // No paging UI here — request the shared-pagination max explicitly so the vendor list
+    // doesn't silently shrink to the default page size now that the backend paginates it.
+    const qs = `?limit=100${params?.active ? '&active=true' : ''}`;
     const res = await apiClient.get<Paginated<Vendor> | Vendor[]>(`${libBase(orgSlug)}/acquisitions/vendors${qs}`);
     return normalizePage<Vendor>(res);
   },
@@ -177,7 +179,8 @@ export const acquisitionsApi = {
 
   // Budgets
   listBudgets: async (orgSlug: string, fiscalYear?: number): Promise<Paginated<AcquisitionBudget>> => {
-    const qs = fiscalYear ? `?fiscal_year=${fiscalYear}` : '';
+    // No paging UI here — same reasoning as listVendors above.
+    const qs = `?limit=100${fiscalYear ? `&fiscal_year=${fiscalYear}` : ''}`;
     const res = await apiClient.get<Paginated<AcquisitionBudget> | AcquisitionBudget[]>(
       `${libBase(orgSlug)}/acquisitions/budgets${qs}`
     );
@@ -190,8 +193,10 @@ export const acquisitionsApi = {
 
   // Funds
   listFunds: async (orgSlug: string, budgetId: string): Promise<Paginated<AcquisitionFund>> => {
+    // No paging UI here — same reasoning as listVendors above.
     const res = await apiClient.get<Paginated<AcquisitionFund> | AcquisitionFund[]>(
-      `${libBase(orgSlug)}/acquisitions/budgets/${budgetId}/funds`
+      `${libBase(orgSlug)}/acquisitions/budgets/${budgetId}/funds`,
+      { limit: 100 }
     );
     return normalizePage<AcquisitionFund>(res);
   },
@@ -199,10 +204,12 @@ export const acquisitionsApi = {
     apiClient.post<AcquisitionFund>(`${libBase(orgSlug)}/acquisitions/budgets/${budgetId}/funds`, data),
 
   // Purchase Orders
-  listOrders: async (orgSlug: string, params?: { status?: POStatus; vendor_id?: string }): Promise<Paginated<PurchaseOrder>> => {
+  listOrders: async (orgSlug: string, params?: { status?: POStatus; vendor_id?: string; page?: number; limit?: number }): Promise<Paginated<PurchaseOrder>> => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.vendor_id) qs.set('vendor_id', params.vendor_id);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
     const query = qs.toString() ? `?${qs}` : '';
     const res = await apiClient.get<Paginated<PurchaseOrder> | PurchaseOrder[]>(
       `${libBase(orgSlug)}/acquisitions/orders${query}`
@@ -226,10 +233,12 @@ export const acquisitionsApi = {
     ),
 
   // Invoices
-  listInvoices: async (orgSlug: string, params?: { status?: InvoiceStatus; vendor_id?: string }): Promise<Paginated<AcquisitionInvoice>> => {
+  listInvoices: async (orgSlug: string, params?: { status?: InvoiceStatus; vendor_id?: string; page?: number; limit?: number }): Promise<Paginated<AcquisitionInvoice>> => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.vendor_id) qs.set('vendor_id', params.vendor_id);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
     const query = qs.toString() ? `?${qs}` : '';
     const res = await apiClient.get<Paginated<AcquisitionInvoice> | AcquisitionInvoice[]>(
       `${libBase(orgSlug)}/acquisitions/invoices${query}`

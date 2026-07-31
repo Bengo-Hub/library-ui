@@ -233,7 +233,9 @@ export const catalogApi = {
 
   // Reference lists
   listCollections: async (orgSlug: string): Promise<LibraryCollection[]> => {
-    const res = await apiClient.get<{ data?: LibraryCollection[] } | LibraryCollection[]>(`${libBase(orgSlug)}/catalog/collections`);
+    // No paging UI here — request the shared-pagination max explicitly so the collections
+    // list (used to populate pickers) doesn't silently shrink now that the backend paginates it.
+    const res = await apiClient.get<{ data?: LibraryCollection[] } | LibraryCollection[]>(`${libBase(orgSlug)}/catalog/collections`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   createCollection: (orgSlug: string, input: CollectionInput) =>

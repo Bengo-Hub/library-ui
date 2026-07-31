@@ -148,25 +148,26 @@ export const membersApi = {
   getImportErrors: (orgSlug: string, jobId: string): Promise<Blob> =>
     apiClient.getBlob(`${libBase(orgSlug)}/members/import/${jobId}/errors`),
 
-  // Member tiers
+  // Member tiers — no paging UI, so request the shared-pagination max explicitly.
   listTiers: async (orgSlug: string): Promise<MemberTier[]> => {
-    const res = await apiClient.get<{ data?: MemberTier[] } | MemberTier[]>(`${libBase(orgSlug)}/member-tiers`);
+    const res = await apiClient.get<{ data?: MemberTier[] } | MemberTier[]>(`${libBase(orgSlug)}/member-tiers`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   createTier: (orgSlug: string, data: MemberTierInput) => apiClient.post<MemberTier>(`${libBase(orgSlug)}/member-tiers`, data),
   updateTier: (orgSlug: string, id: string, data: Partial<MemberTierInput>) => apiClient.put<MemberTier>(`${libBase(orgSlug)}/member-tiers/${id}`, data),
 
-  // Loan policies
+  // Loan policies — no paging UI, so request the shared-pagination max explicitly.
   listPolicies: async (orgSlug: string): Promise<LoanPolicy[]> => {
-    const res = await apiClient.get<{ data?: LoanPolicy[] } | LoanPolicy[]>(`${libBase(orgSlug)}/loan-policies`);
+    const res = await apiClient.get<{ data?: LoanPolicy[] } | LoanPolicy[]>(`${libBase(orgSlug)}/loan-policies`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   createPolicy: (orgSlug: string, data: LoanPolicyInput) => apiClient.post<LoanPolicy>(`${libBase(orgSlug)}/loan-policies`, data),
   updatePolicy: (orgSlug: string, id: string, data: Partial<LoanPolicyInput>) => apiClient.put<LoanPolicy>(`${libBase(orgSlug)}/loan-policies/${id}`, data),
 
-  // Membership fees (treasury-settled; reference_type membership_fee)
+  // Membership fees (treasury-settled; reference_type membership_fee) — no paging UI, so
+  // request the shared-pagination max explicitly.
   listMembershipFees: async (orgSlug: string, status?: string): Promise<MembershipFee[]> => {
-    const res = await apiClient.get<{ data?: MembershipFee[] } | MembershipFee[]>(`${libBase(orgSlug)}/membership-fees`, status ? { status } : undefined);
+    const res = await apiClient.get<{ data?: MembershipFee[] } | MembershipFee[]>(`${libBase(orgSlug)}/membership-fees`, { ...(status ? { status } : {}), limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   issueMembershipFee: (orgSlug: string, memberId: string) =>

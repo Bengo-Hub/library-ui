@@ -45,7 +45,9 @@ export const finesApi = {
   },
 
   memberFines: async (orgSlug: string, memberId: string): Promise<Fine[]> => {
-    const res = await apiClient.get<{ data?: Fine[] } | Fine[]>(`${libBase(orgSlug)}/members/${memberId}/fines`);
+    // No paging UI on the member detail page's fine history — request the shared-pagination
+    // max explicitly so it doesn't silently shrink now that the backend paginates it.
+    const res = await apiClient.get<{ data?: Fine[] } | Fine[]>(`${libBase(orgSlug)}/members/${memberId}/fines`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
 

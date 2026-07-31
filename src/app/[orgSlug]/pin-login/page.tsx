@@ -131,6 +131,20 @@ export default function PinLoginPage() {
   function clear() { setError(false); setPinDigits([]); }
   function submitCurrent() { if (pinDigits.length > 0) void submitPin(pinDigits.join('')); }
 
+  // Typed input (physical keyboard or mobile virtual keyboard) into PasscodeField's real
+  // <input> — an alternate path into the same pinDigits state the on-screen keyboards drive.
+  function handleTyped(v: string) {
+    if (submitting) return;
+    setError(false);
+    if (keyboard === 'numeric') {
+      const digits = v.replace(/\D/g, '').slice(0, PIN_LENGTH);
+      setPinDigits(digits.split(''));
+      if (digits.length === PIN_LENGTH) void submitPin(digits);
+    } else {
+      setPinDigits(v.split(''));
+    }
+  }
+
   const goSSO = () => redirectToSSO(orgSlug, `/${orgSlug}`);
 
   const ScanCardBar = () => (
@@ -220,8 +234,10 @@ export default function PinLoginPage() {
       footer={isDemo && <DemoHints title="Demo desk PINs" hints={DEMO_PINS} />}
       card={
         <div className="flex-1 min-h-0 flex flex-col gap-3 p-3 sm:p-6">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-full max-w-xs">
+          {/* One row whenever there's room (desktop/tablet); wraps only on the narrowest
+              phones — was unconditionally stacked into two rows before regardless of width. */}
+          <div className="flex flex-row flex-wrap items-center justify-center gap-2 sm:gap-3">
+            <div className="min-w-0 flex-1 basis-56 max-w-xs">
               <ScanCardBar />
             </div>
             <PasscodeField
@@ -230,6 +246,11 @@ export default function PinLoginPage() {
               shake={shake}
               onSubmit={submitCurrent}
               isSubmitting={submitting}
+              onChange={handleTyped}
+              inputMode={keyboard === 'numeric' ? 'numeric' : 'text'}
+              maxLength={keyboard === 'numeric' ? PIN_LENGTH : undefined}
+              autoFocus={false}
+              className="flex-1 basis-72"
             />
           </div>
 

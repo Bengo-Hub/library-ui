@@ -68,7 +68,9 @@ export const circulationApi = {
   },
 
   memberLoans: async (orgSlug: string, memberId: string): Promise<Loan[]> => {
-    const res = await apiClient.get<{ data?: Loan[] } | Loan[]>(`${libBase(orgSlug)}/members/${memberId}/loans`);
+    // No paging UI on the member detail page's loan history — request the shared-pagination
+    // max explicitly so it doesn't silently shrink now that the backend paginates it.
+    const res = await apiClient.get<{ data?: Loan[] } | Loan[]>(`${libBase(orgSlug)}/members/${memberId}/loans`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
 

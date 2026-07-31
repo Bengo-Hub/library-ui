@@ -71,7 +71,9 @@ export interface PredictedIssue {
 export const serialsApi = {
   // Subscriptions
   listSubscriptions: async (orgSlug: string, status?: SubscriptionStatus): Promise<Paginated<SerialSubscription>> => {
-    const qs = status ? `?status=${status}` : '';
+    // No paging UI here — request the shared-pagination max explicitly so the subscriptions
+    // list doesn't silently shrink to the default page size now that the backend paginates it.
+    const qs = `?limit=100${status ? `&status=${status}` : ''}`;
     const res = await apiClient.get<Paginated<SerialSubscription> | SerialSubscription[]>(
       `${libBase(orgSlug)}/serials/subscriptions${qs}`
     );
@@ -92,8 +94,10 @@ export const serialsApi = {
 
   // Routing
   listRouting: async (orgSlug: string, subId: string): Promise<Paginated<SerialRoutingEntry>> => {
+    // No paging UI here — see listSubscriptions above.
     const res = await apiClient.get<Paginated<SerialRoutingEntry> | SerialRoutingEntry[]>(
-      `${libBase(orgSlug)}/serials/subscriptions/${subId}/routing`
+      `${libBase(orgSlug)}/serials/subscriptions/${subId}/routing`,
+      { limit: 100 }
     );
     return normalizePage<SerialRoutingEntry>(res);
   },
@@ -105,7 +109,9 @@ export const serialsApi = {
     const qs = new URLSearchParams();
     if (params?.subscription_id) qs.set('subscription_id', params.subscription_id);
     if (params?.status) qs.set('status', params.status);
-    const query = qs.toString() ? `?${qs}` : '';
+    // No paging UI here — see listSubscriptions above.
+    qs.set('limit', '100');
+    const query = `?${qs}`;
     const res = await apiClient.get<Paginated<SerialIssue> | SerialIssue[]>(
       `${libBase(orgSlug)}/serials/issues${query}`
     );

@@ -49,7 +49,9 @@ export interface CopyInput {
 
 export const copiesApi = {
   listForBib: async (orgSlug: string, bibId: string): Promise<Copy[]> => {
-    const res = await apiClient.get<{ data?: Copy[] } | Copy[]>(`${libBase(orgSlug)}/catalog/bibs/${bibId}/copies`);
+    // No paging UI for a single title's copy list — pass the shared-pagination max explicitly
+    // so titles with many copies/branches aren't silently truncated to the default page size.
+    const res = await apiClient.get<{ data?: Copy[] } | Copy[]>(`${libBase(orgSlug)}/catalog/bibs/${bibId}/copies`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
 
@@ -82,7 +84,9 @@ export const copiesApi = {
 
   // Inter-branch transfers
   listTransfers: async (orgSlug: string, status?: string): Promise<CopyTransfer[]> => {
-    const res = await apiClient.get<{ data?: CopyTransfer[] } | CopyTransfer[]>(`${libBase(orgSlug)}/catalog/transfers`, status ? { status } : undefined);
+    // No paging UI here — request the shared-pagination max explicitly so the transfers list
+    // doesn't silently shrink to the default page size now that the backend paginates it.
+    const res = await apiClient.get<{ data?: CopyTransfer[] } | CopyTransfer[]>(`${libBase(orgSlug)}/catalog/transfers`, { ...(status ? { status } : {}), limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   createTransfer: (orgSlug: string, data: { copy_id: string; to_branch_id: string; notes?: string }) =>
@@ -116,7 +120,9 @@ export interface StockCount {
 
 export const stocktakeApi = {
   list: async (orgSlug: string): Promise<StockCount[]> => {
-    const res = await apiClient.get<{ data?: StockCount[] } | StockCount[]>(`${libBase(orgSlug)}/catalog/stocktake`);
+    // No paging UI here — request the shared-pagination max explicitly so the session list
+    // doesn't silently shrink to the default page size now that the backend paginates it.
+    const res = await apiClient.get<{ data?: StockCount[] } | StockCount[]>(`${libBase(orgSlug)}/catalog/stocktake`, { limit: 100 });
     return Array.isArray(res) ? res : (res.data ?? []);
   },
   start: (orgSlug: string, data: { branch_id: string; reference?: string }) =>
