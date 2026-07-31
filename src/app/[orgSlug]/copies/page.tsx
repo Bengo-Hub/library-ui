@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft, Search, ScanLine } from 'lucide-react';
+import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft, Search, ScanLine, Layers } from 'lucide-react';
 import { useBib } from '@/hooks/useCatalog';
 import { useBibCopies, useCopies, useCreateCopy, useUpdateCopy, useDeleteCopy } from '@/hooks/useCopies';
 import { useBranches } from '@/hooks/useBranches';
@@ -51,6 +51,8 @@ function CopiesContent() {
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
   const [scanOpen, setScanOpen] = useState(false);
+  const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
+  const [bulkSheet, setBulkSheet] = useState<'l7160' | '5160'>('l7160');
 
   const { data: bib } = useBib(orgSlug, bibId);
   const { data: bibCopies = [], isLoading: bibLoading } = useBibCopies(orgSlug, bibId);
@@ -106,6 +108,18 @@ function CopiesContent() {
     });
   }
 
+  function handleBulkPrint() {
+    setBulkPrintOpen(false);
+    void openPreview(
+      () => copiesApi.printLabels(orgSlug, {
+        status: statusFilter || undefined,
+        branch_id: branchFilter || undefined,
+        sheet: bulkSheet,
+      }),
+      { fileName: 'copy-labels.pdf', title: 'Bulk copy labels', orientation: 'portrait' },
+    );
+  }
+
   if (!bibId) {
     const allCopies = copiesPage?.data ?? [];
     const total = copiesPage?.total ?? 0;
@@ -155,9 +169,14 @@ function CopiesContent() {
           subtitle={`${total} physical cop${total === 1 ? 'y' : 'ies'} across all titles`}
           icon={<BookCopy className="h-5 w-5" />}
           actions={
-            <Link href={`/${orgSlug}/catalog`}>
-              <Button variant="outline" className="gap-1.5"><Plus className="h-4 w-4" /> Add via Catalog</Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="gap-1.5" onClick={() => setBulkPrintOpen(true)}>
+                <Layers className="h-4 w-4" /> Print labels
+              </Button>
+              <Link href={`/${orgSlug}/catalog`}>
+                <Button variant="outline" className="gap-1.5"><Plus className="h-4 w-4" /> Add via Catalog</Button>
+              </Link>
+            </div>
           }
         />
 
@@ -259,6 +278,37 @@ function CopiesContent() {
               onScan={(text) => { setSearchQ(text); setPage(1); setScanOpen(false); }}
             />
           )}
+        </Dialog>
+
+        <Dialog
+          open={bulkPrintOpen}
+          onClose={() => setBulkPrintOpen(false)}
+          title="Print labels"
+          description="Prints one holding label per copy matching the currently applied filters below."
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setBulkPrintOpen(false)}>Cancel</Button>
+              <Button onClick={handleBulkPrint}>Print sheet</Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-accent/10 px-3 py-2 text-sm text-muted-foreground">
+              This will print labels for the <strong className="text-foreground">currently applied filters</strong>:{' '}
+              status <strong className="text-foreground">{statusFilter ? (COPY_STATUSES.find((s) => s.value === statusFilter)?.label ?? statusFilter) : 'All'}</strong>
+              {branchFilter && (
+                <>, branch <strong className="text-foreground">{branches.find((b) => b.id === branchFilter)?.name ?? branchFilter}</strong></>
+              )}
+              .
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Label sheet</label>
+              <Select value={bulkSheet} onChange={(e) => setBulkSheet(e.target.value as 'l7160' | '5160')}>
+                <option value="l7160">Avery L7160 (A4, 21/sheet)</option>
+                <option value="5160">Avery 5160 (US Letter, 30/sheet)</option>
+              </Select>
+            </div>
+          </div>
         </Dialog>
       </div>
     );

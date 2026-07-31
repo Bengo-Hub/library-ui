@@ -76,6 +76,10 @@ export const copiesApi = {
   labelPdf: (orgSlug: string, id: string) =>
     apiClient.getBlob(`${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`),
 
+  /** Bulk print: renders an Avery-sheet PDF of holding labels for many copies at once. */
+  printLabels: (orgSlug: string, body: { copy_ids?: string[]; bib_id?: string; branch_id?: string; status?: string; sheet?: string }) =>
+    apiClient.postBlob(`${libBase(orgSlug)}/catalog/copies/labels/print`, body),
+
   // Inter-branch transfers
   listTransfers: async (orgSlug: string, status?: string): Promise<CopyTransfer[]> => {
     const res = await apiClient.get<{ data?: CopyTransfer[] } | CopyTransfer[]>(`${libBase(orgSlug)}/catalog/transfers`, status ? { status } : undefined);
