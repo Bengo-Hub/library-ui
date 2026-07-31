@@ -16,7 +16,7 @@ import { reportsApi } from '@/lib/api/reports';
 import { PageHeader, StatCard, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { CapsuleTabs } from '@/components/ui/tabs';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { formatDate, formatMoney } from '@/lib/format';
 import type { MemberActivityRow, ItemMovementRow, FineAgingRow } from '@/lib/api/reports';
 
@@ -164,10 +164,10 @@ export default function ReportsPage() {
           </div>
           <DataTable
             columns={[
-              { key: 'barcode', header: 'Barcode', cell: (r: ItemMovementRow) => <span className="font-mono text-sm">{r.barcode}</span> },
-              { key: 'title', header: 'Title', primary: true, cell: (r: ItemMovementRow) => <span className="font-medium">{r.title}</span> },
-              { key: 'checkouts', header: 'Checkouts', align: 'right', cell: (r: ItemMovementRow) => <span className="font-medium">{r.checkouts}</span> },
-            ]}
+              { key: 'barcode', header: 'Barcode', accessor: (r: ItemMovementRow) => r.barcode, render: (r: ItemMovementRow) => <span className="font-mono text-sm">{r.barcode}</span> },
+              { key: 'title', header: 'Title', primary: true, sortable: true, accessor: (r: ItemMovementRow) => r.title, render: (r: ItemMovementRow) => <span className="font-medium">{r.title}</span> },
+              { key: 'checkouts', header: 'Checkouts', align: 'right', sortable: true, accessor: (r: ItemMovementRow) => r.checkouts, render: (r: ItemMovementRow) => <span className="font-medium">{r.checkouts}</span> },
+            ] satisfies DataTableColumn<ItemMovementRow>[]}
             rows={itemMovement?.data ?? []}
             rowKey={(r: ItemMovementRow) => r.copy_id}
           />
@@ -183,10 +183,10 @@ export default function ReportsPage() {
           </div>
           <DataTable
             columns={[
-              { key: 'membership_no', header: 'ID', cell: (r: MemberActivityRow) => <span className="font-mono text-xs">{r.membership_no}</span> },
-              { key: 'name', header: 'Name', primary: true, cell: (r: MemberActivityRow) => <span className="font-medium">{r.name || r.member_id.slice(0, 8)}</span> },
-              { key: 'loans', header: 'Loans', align: 'right', cell: (r: MemberActivityRow) => <span className="font-medium">{r.loans}</span> },
-            ]}
+              { key: 'membership_no', header: 'ID', accessor: (r: MemberActivityRow) => r.membership_no, render: (r: MemberActivityRow) => <span className="font-mono text-xs">{r.membership_no}</span> },
+              { key: 'name', header: 'Name', primary: true, sortable: true, accessor: (r: MemberActivityRow) => r.name || r.member_id, render: (r: MemberActivityRow) => <span className="font-medium">{r.name || r.member_id.slice(0, 8)}</span> },
+              { key: 'loans', header: 'Loans', align: 'right', sortable: true, accessor: (r: MemberActivityRow) => r.loans, render: (r: MemberActivityRow) => <span className="font-medium">{r.loans}</span> },
+            ] satisfies DataTableColumn<MemberActivityRow>[]}
             rows={memberActivity?.data ?? []}
             rowKey={(r: MemberActivityRow) => r.member_id}
           />
@@ -280,9 +280,9 @@ export default function ReportsPage() {
               <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground mt-2">Spend by Vendor</h2>
               <DataTable
                 columns={[
-                  { key: 'name', header: 'Vendor', primary: true, cell: (v: { vendor_id: string; name: string; spend: number }) => <span className="font-medium">{v.name || v.vendor_id.slice(0, 8)}</span> },
-                  { key: 'spend', header: 'Total Spend', align: 'right', cell: (v: { vendor_id: string; name: string; spend: number }) => <span className="font-medium">{formatMoney(v.spend)}</span> },
-                ]}
+                  { key: 'name', header: 'Vendor', primary: true, sortable: true, accessor: (v: { vendor_id: string; name: string; spend: number }) => v.name || v.vendor_id, render: (v: { vendor_id: string; name: string; spend: number }) => <span className="font-medium">{v.name || v.vendor_id.slice(0, 8)}</span> },
+                  { key: 'spend', header: 'Total Spend', align: 'right', sortable: true, accessor: (v: { vendor_id: string; name: string; spend: number }) => v.spend, render: (v: { vendor_id: string; name: string; spend: number }) => <span className="font-medium">{formatMoney(v.spend)}</span> },
+                ] satisfies DataTableColumn<{ vendor_id: string; name: string; spend: number }>[]}
                 rows={acqSpend!.vendors}
                 rowKey={(v: { vendor_id: string; name: string; spend: number }) => v.vendor_id}
               />
@@ -300,13 +300,13 @@ export default function ReportsPage() {
           </div>
           <DataTable
             columns={[
-              { key: 'membership_no', header: 'ID', cell: (r: FineAgingRow) => <span className="font-mono text-xs">{r.membership_no}</span> },
-              { key: 'name', header: 'Member', primary: true, cell: (r: FineAgingRow) => <span className="font-medium">{r.name || r.member_id.slice(0, 8)}</span> },
-              { key: 'days_old', header: 'Days Old', align: 'right', cell: (r: FineAgingRow) => (
+              { key: 'membership_no', header: 'ID', accessor: (r: FineAgingRow) => r.membership_no, render: (r: FineAgingRow) => <span className="font-mono text-xs">{r.membership_no}</span> },
+              { key: 'name', header: 'Member', primary: true, sortable: true, accessor: (r: FineAgingRow) => r.name || r.member_id, render: (r: FineAgingRow) => <span className="font-medium">{r.name || r.member_id.slice(0, 8)}</span> },
+              { key: 'days_old', header: 'Days Old', align: 'right', sortable: true, accessor: (r: FineAgingRow) => r.days_old, render: (r: FineAgingRow) => (
                 <Badge variant={r.days_old > 30 ? 'error' : r.days_old > 14 ? 'warning' : 'outline'}>{r.days_old}d</Badge>
               ) },
-              { key: 'outstanding', header: 'Outstanding', align: 'right', cell: (r: FineAgingRow) => <span className="font-medium text-red-600">{formatMoney(r.outstanding)}</span> },
-            ]}
+              { key: 'outstanding', header: 'Outstanding', align: 'right', sortable: true, accessor: (r: FineAgingRow) => r.outstanding, render: (r: FineAgingRow) => <span className="font-medium text-red-600">{formatMoney(r.outstanding)}</span> },
+            ] satisfies DataTableColumn<FineAgingRow>[]}
             rows={fineAging?.data ?? []}
             rowKey={(r: FineAgingRow) => r.member_id + r.days_old}
           />

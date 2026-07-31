@@ -4,17 +4,19 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft, Search } from 'lucide-react';
+import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft, Search, ScanLine } from 'lucide-react';
 import { useBib } from '@/hooks/useCatalog';
 import { useBibCopies, useCopies, useCreateCopy, useUpdateCopy, useDeleteCopy } from '@/hooks/useCopies';
 import { useBranches } from '@/hooks/useBranches';
 import { PageHeader, EmptyState } from '@/components/ui/page';
-import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { Button, Badge } from '@/components/ui/base';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Select } from '@/components/ui/form';
+import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Can } from '@/components/auth/Can';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput, type CopyStatus } from '@/lib/api/copies';
@@ -48,6 +50,7 @@ function CopiesContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const { data: bib } = useBib(orgSlug, bibId);
   const { data: bibCopies = [], isLoading: bibLoading } = useBibCopies(orgSlug, bibId);
@@ -109,17 +112,30 @@ function CopiesContent() {
     const totalPages = Math.ceil(total / PAGE_SIZE);
     const branches = branchesPage?.data ?? [];
 
-    const globalColumns: Column<Copy>[] = [
-      { key: 'barcode', header: 'Barcode', primary: true, cell: (c) => <span className="font-mono text-xs">{c.barcode}</span> },
-      { key: 'title', header: 'Title', cell: (c) => <span className="line-clamp-1 text-sm">{c.bib_title ?? '—'}</span> },
-      { key: 'branch', header: 'Branch', cell: (c) => c.branch_name ?? '—' },
-      { key: 'shelf', header: 'Shelf', cell: (c) => c.shelf_location ?? '—' },
-      { key: 'acquired', header: 'Acquired', cell: (c) => <span className="text-muted-foreground text-xs">{formatDate(c.acquisition_date)}</span> },
-      { key: 'status', header: 'Status', cell: (c) => <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>{COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}</Badge> },
+    const globalColumns: DataTableColumn<Copy>[] = [
       {
-        key: 'actions', header: '', actions: true, align: 'right',
-        cell: (c) => (
-          <div className="flex items-center justify-end gap-1">
+        key: 'barcode', header: 'Accession / Barcode Number', primary: true, sortable: true,
+        accessor: (c) => c.barcode,
+        render: (c) => <span className="font-mono text-xs">{c.barcode}</span>,
+      },
+      {
+        key: 'title', header: 'Title', accessor: (c) => c.bib_title ?? '',
+        render: (c) => <span className="line-clamp-1 text-sm">{c.bib_title ?? '—'}</span>,
+      },
+      { key: 'branch', header: 'Branch', accessor: (c) => c.branch_name ?? '', render: (c) => c.branch_name ?? '—' },
+      { key: 'shelf', header: 'Shelf', accessor: (c) => c.shelf_location ?? '', render: (c) => c.shelf_location ?? '—' },
+      {
+        key: 'acquired', header: 'Acquired', sortable: true, accessor: (c) => c.acquisition_date,
+        render: (c) => <span className="text-muted-foreground text-xs">{formatDate(c.acquisition_date)}</span>,
+      },
+      {
+        key: 'status', header: 'Status', accessor: (c) => c.status,
+        render: (c) => <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>{COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}</Badge>,
+      },
+      {
+        key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+        render: (c) => (
+          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" title="Print label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
             <Can perm="library.copies.change">
               <Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
@@ -157,9 +173,18 @@ function CopiesContent() {
             <input
               value={searchQ}
               onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
-              placeholder="Search barcode or title…"
-              className="w-full rounded-lg border border-input bg-transparent pl-8 pr-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+              placeholder="Search accession/barcode number or title…"
+              className="w-full rounded-lg border border-input bg-transparent pl-8 pr-9 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
             />
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              title="Scan accession/barcode number"
+              aria-label="Scan accession/barcode number"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <ScanLine className="h-3.5 w-3.5" />
+            </button>
           </div>
           {branches.length > 0 && (
             <Select
@@ -173,25 +198,25 @@ function CopiesContent() {
           )}
         </div>
 
-        <Card>
-          <DataTable
-            columns={globalColumns}
-            rows={allCopies}
-            rowKey={(c) => c.id}
-            loading={allLoading}
-            skeletonRows={6}
-            empty={
-              <EmptyState
-                icon={<BookCopy className="h-12 w-12" />}
-                title="No copies found"
-                description={searchQ || statusFilter || branchFilter ? 'Try adjusting the filters.' : 'No physical copies have been registered yet.'}
-                action={
-                  <Link href={`/${orgSlug}/catalog`}><Button className="gap-1.5"><Plus className="h-4 w-4" /> Go to catalog</Button></Link>
-                }
-              />
-            }
-          />
-        </Card>
+        <DataTable
+          columns={globalColumns}
+          rows={allCopies}
+          rowKey={(c) => c.id}
+          loading={allLoading}
+          emptyState={
+            <EmptyState
+              icon={<BookCopy className="h-12 w-12" />}
+              title="No copies found"
+              description={searchQ || statusFilter || branchFilter ? 'Try adjusting the filters.' : 'No physical copies have been registered yet.'}
+              action={
+                <Link href={`/${orgSlug}/catalog`}><Button className="gap-1.5"><Plus className="h-4 w-4" /> Go to catalog</Button></Link>
+              }
+            />
+          }
+          storageKey="library-copies-holdings"
+          showExportCsv
+          exportFileName="library-copies"
+        />
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -226,6 +251,15 @@ function CopiesContent() {
         />
 
         <PdfPreview {...previewProps} />
+
+        <Dialog open={scanOpen} onClose={() => setScanOpen(false)} title="Scan accession/barcode number">
+          {scanOpen && (
+            <BarcodeScanner
+              hint="Point the camera at the copy's accession/barcode label."
+              onScan={(text) => { setSearchQ(text); setPage(1); setScanOpen(false); }}
+            />
+          )}
+        </Dialog>
       </div>
     );
   }
@@ -233,16 +267,26 @@ function CopiesContent() {
   const copies = bibCopies;
   const isLoading = bibLoading;
 
-  const columns: Column<Copy>[] = [
-    { key: 'barcode', header: 'Barcode', primary: true, cell: (c) => <span className="font-mono text-xs">{c.barcode}</span> },
-    { key: 'branch', header: 'Branch', cell: (c) => c.branch_name ?? '—' },
-    { key: 'shelf', header: 'Shelf', cell: (c) => c.shelf_location ?? '—' },
-    { key: 'acquired', header: 'Acquired', cell: (c) => <span className="text-muted-foreground">{formatDate(c.acquisition_date)}</span> },
-    { key: 'status', header: 'Status', cell: (c) => <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>{COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}</Badge> },
+  const columns: DataTableColumn<Copy>[] = [
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (c) => (
-        <div className="flex items-center justify-end gap-1">
+      key: 'barcode', header: 'Accession / Barcode Number', primary: true,
+      accessor: (c) => c.barcode,
+      render: (c) => <span className="font-mono text-xs">{c.barcode}</span>,
+    },
+    { key: 'branch', header: 'Branch', accessor: (c) => c.branch_name ?? '', render: (c) => c.branch_name ?? '—' },
+    { key: 'shelf', header: 'Shelf', accessor: (c) => c.shelf_location ?? '', render: (c) => c.shelf_location ?? '—' },
+    {
+      key: 'acquired', header: 'Acquired', accessor: (c) => c.acquisition_date,
+      render: (c) => <span className="text-muted-foreground">{formatDate(c.acquisition_date)}</span>,
+    },
+    {
+      key: 'status', header: 'Status', accessor: (c) => c.status,
+      render: (c) => <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>{COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}</Badge>,
+    },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (c) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
           <Can perm="library.copies.change"><Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></Can>
           <Can perm="library.copies.delete"><Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button></Can>
@@ -263,21 +307,18 @@ function CopiesContent() {
         actions={<Can perm="library.copies.add"><Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> Add Copy</Button></Can>}
       />
 
-      <Card>
-        <DataTable
-          columns={columns}
-          rows={copies}
-          rowKey={(c) => c.id}
-          loading={isLoading}
-          skeletonRows={4}
-          empty={<EmptyState
-            icon={<BookCopy className="h-12 w-12" />}
-            title="No copies yet"
-            description="Add the first physical copy by scanning its barcode."
-            action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> Add Copy</Button>}
-          />}
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={copies}
+        rowKey={(c) => c.id}
+        loading={isLoading}
+        emptyState={<EmptyState
+          icon={<BookCopy className="h-12 w-12" />}
+          title="No copies yet"
+          description="Add the first physical copy by scanning its barcode."
+          action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> Add Copy</Button>}
+        />}
+      />
 
       <CopyFormDialog
         open={dialogOpen}

@@ -7,8 +7,8 @@ import { toast } from 'sonner';
 import { CircleDollarSign, Plus, Loader2 } from 'lucide-react';
 import { useFines, useWaiveFine, usePayFine, useAssessMembershipFee } from '@/hooks/useFines';
 import { PageHeader, EmptyState } from '@/components/ui/page';
-import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { Button, Badge } from '@/components/ui/base';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -48,22 +48,32 @@ export default function FinesPage() {
   const fines = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
-  const columns: Column<Fine>[] = [
+  const columns: DataTableColumn<Fine>[] = [
     {
       key: 'member', header: 'Member', primary: true,
-      cell: (f) => f.member_id
+      accessor: (f) => f.member_name ?? f.membership_no ?? '',
+      render: (f) => f.member_id
         ? <Link href={`/${orgSlug}/members/${f.member_id}`} className="font-medium hover:text-primary">{f.member_name ?? f.membership_no}</Link>
         : (f.member_name ?? '—'),
     },
-    { key: 'type', header: 'Type', cell: (f) => <span className="capitalize">{f.type}</span> },
-    { key: 'reason', header: 'Reason', cell: (f) => <span className="text-muted-foreground line-clamp-2 md:truncate md:max-w-56 block">{f.bib_title ?? f.reason ?? '—'}</span> },
-    { key: 'assessed', header: 'Assessed', cell: (f) => <span className="text-muted-foreground">{formatDate(f.assessed_at)}</span> },
-    { key: 'balance', header: 'Balance', cell: (f) => <span className="font-medium">{formatMoney(f.balance ?? f.amount)}</span> },
-    { key: 'status', header: 'Status', cell: (f) => <Badge variant={STATUS_VARIANT[f.status]}>{f.status}</Badge> },
+    { key: 'type', header: 'Type', filterable: true, accessor: (f) => f.type, render: (f) => <span className="capitalize">{f.type}</span> },
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (f) => (f.status === 'outstanding' || f.status === 'partial') ? (
-        <div className="flex items-center justify-end gap-1">
+      key: 'reason', header: 'Reason', accessor: (f) => f.bib_title ?? f.reason ?? '',
+      render: (f) => <span className="text-muted-foreground line-clamp-2 md:truncate md:max-w-56 block">{f.bib_title ?? f.reason ?? '—'}</span>,
+    },
+    {
+      key: 'assessed', header: 'Assessed', sortable: true, accessor: (f) => f.assessed_at,
+      render: (f) => <span className="text-muted-foreground">{formatDate(f.assessed_at)}</span>,
+    },
+    {
+      key: 'balance', header: 'Balance', sortable: true, accessor: (f) => f.balance ?? f.amount,
+      render: (f) => <span className="font-medium">{formatMoney(f.balance ?? f.amount)}</span>,
+    },
+    { key: 'status', header: 'Status', accessor: (f) => f.status, render: (f) => <Badge variant={STATUS_VARIANT[f.status]}>{f.status}</Badge> },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (f) => (f.status === 'outstanding' || f.status === 'partial') ? (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Can perm="library.fines.waive"><Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button></Can>
           <Can perm="library.fines.pay"><Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay</Button></Can>
         </div>
@@ -119,15 +129,16 @@ export default function FinesPage() {
         ]}
       />
 
-      <Card>
-        <DataTable
-          columns={columns}
-          rows={fines}
-          rowKey={(f) => f.id}
-          loading={isLoading}
-          empty={<EmptyState icon={<CircleDollarSign className="h-12 w-12" />} title="No fines" description="There are no fines matching this filter." />}
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={fines}
+        rowKey={(f) => f.id}
+        loading={isLoading}
+        emptyState={<EmptyState icon={<CircleDollarSign className="h-12 w-12" />} title="No fines" description="There are no fines matching this filter." />}
+        storageKey="library-fines"
+        showExportCsv
+        exportFileName="library-fines"
+      />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 

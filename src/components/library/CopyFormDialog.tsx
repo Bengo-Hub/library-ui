@@ -85,9 +85,9 @@ export function CopyFormDialog({
       }
     >
       <div className="space-y-4">
-        <Field label="Barcode" required hint="Each physical copy gets its own unique barcode (separate from the ISBN).">
+        <Field label="Accession / Barcode Number" required hint="Each physical copy gets its own unique accession/barcode number (separate from the ISBN).">
           <div className="flex flex-col sm:flex-row gap-2">
-            <input value={form.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} placeholder="Copy barcode" className={`${FIELD} sm:flex-1`} />
+            <input value={form.barcode ?? ''} onChange={(e) => set('barcode', e.target.value)} placeholder="Copy accession / barcode number" className={`${FIELD} sm:flex-1`} />
             <Button type="button" variant="outline" className="gap-1.5 shrink-0" onClick={() => setScanOpen(true)}><ScanLine className="h-4 w-4" /> Scan</Button>
           </div>
         </Field>

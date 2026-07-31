@@ -7,8 +7,8 @@ import { BookMarked, Plus, X, BellRing, Loader2 } from 'lucide-react';
 import { useHolds, usePlaceHold, useCancelHold, useMarkHoldReady } from '@/hooks/useHolds';
 import { useBibCopies } from '@/hooks/useCopies';
 import { PageHeader, EmptyState } from '@/components/ui/page';
-import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { Button, Badge } from '@/components/ui/base';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Can } from '@/components/auth/Can';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -53,16 +53,23 @@ export default function HoldsPage() {
   const holds = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
-  const columns: Column<Hold>[] = [
-    { key: 'title', header: 'Title', primary: true, cell: (h) => <span className="font-medium">{h.bib_title ?? '—'}</span> },
-    { key: 'member', header: 'Member', cell: (h) => h.member_name ?? h.membership_no ?? '—' },
-    { key: 'queue', header: 'Queue', cell: (h) => h.queue_position != null ? `#${h.queue_position}` : '—' },
-    { key: 'placed', header: 'Placed', cell: (h) => <span className="text-muted-foreground">{formatDate(h.placed_at)}</span> },
-    { key: 'status', header: 'Status', cell: (h) => <Badge variant={STATUS_VARIANT[h.status]}>{h.status}</Badge> },
+  const columns: DataTableColumn<Hold>[] = [
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (h) => (h.status === 'pending' || h.status === 'ready') ? (
-        <div className="flex items-center justify-end gap-1">
+      key: 'title', header: 'Title', primary: true,
+      accessor: (h) => h.bib_title ?? '',
+      render: (h) => <span className="font-medium">{h.bib_title ?? '—'}</span>,
+    },
+    { key: 'member', header: 'Member', accessor: (h) => h.member_name ?? h.membership_no ?? '', render: (h) => h.member_name ?? h.membership_no ?? '—' },
+    { key: 'queue', header: 'Queue', accessor: (h) => h.queue_position ?? '', render: (h) => h.queue_position != null ? `#${h.queue_position}` : '—' },
+    {
+      key: 'placed', header: 'Placed', sortable: true, accessor: (h) => h.placed_at,
+      render: (h) => <span className="text-muted-foreground">{formatDate(h.placed_at)}</span>,
+    },
+    { key: 'status', header: 'Status', accessor: (h) => h.status, render: (h) => <Badge variant={STATUS_VARIANT[h.status]}>{h.status}</Badge> },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (h) => (h.status === 'pending' || h.status === 'ready') ? (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           {h.status === 'pending' && (
             <Can perm="library.holds.change">
               <Button variant="ghost" size="sm" className="gap-1.5 text-primary" disabled={markReady.isPending} onClick={() => handleMarkReady(h)}>
@@ -132,16 +139,13 @@ export default function HoldsPage() {
         ]}
       />
 
-      <Card>
-        <DataTable
-          columns={columns}
-          rows={holds}
-          rowKey={(h) => h.id}
-          loading={isLoading}
-          skeletonRows={5}
-          empty={<EmptyState icon={<BookMarked className="h-12 w-12" />} title="No holds" description="There are no reservations matching this filter." />}
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={holds}
+        rowKey={(h) => h.id}
+        loading={isLoading}
+        emptyState={<EmptyState icon={<BookMarked className="h-12 w-12" />} title="No holds" description="There are no reservations matching this filter." />}
+      />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 

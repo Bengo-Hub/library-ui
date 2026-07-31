@@ -8,7 +8,7 @@ import { ArrowLeft, FileText, Plus } from 'lucide-react';
 import { useInvoices, useCreateInvoice, useVendors } from '@/hooks/useAcquisitions';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
@@ -60,27 +60,36 @@ export default function InvoicesPage() {
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to create invoice')); }
   }
 
-  const columns: Column<AcquisitionInvoice>[] = [
+  const columns: DataTableColumn<AcquisitionInvoice>[] = [
     {
-      key: 'invoice_no', header: 'Invoice #', primary: true,
-      cell: (inv) => <span className="font-medium">{inv.invoice_no ?? '—'}</span>,
+      key: 'invoice_no', header: 'Invoice #', primary: true, sortable: true,
+      accessor: (inv) => inv.invoice_no ?? '—',
+      render: (inv) => <span className="font-medium">{inv.invoice_no ?? '—'}</span>,
     },
     {
-      key: 'vendor', header: 'Vendor',
-      cell: (inv) => {
+      key: 'vendor', header: 'Vendor', filterable: true,
+      accessor: (inv) => vendors.find((v) => v.id === inv.vendor_id)?.name ?? inv.vendor_id,
+      render: (inv) => {
         const v = vendors.find((v) => v.id === inv.vendor_id);
         return <span>{v?.name ?? inv.vendor_id.slice(0, 8)}</span>;
       },
     },
-    { key: 'invoice_date', header: 'Date', cell: (inv) => <span className="text-muted-foreground">{formatDate(inv.invoice_date)}</span> },
-    { key: 'amount', header: 'Amount', cell: (inv) => <span className="font-medium">{formatMoney(parseFloat(inv.amount))}</span> },
     {
-      key: 'status', header: 'Status',
-      cell: (inv) => <Badge variant={STATUS_VARIANT[inv.status]}>{inv.status}</Badge>,
+      key: 'invoice_date', header: 'Date', sortable: true, accessor: (inv) => inv.invoice_date,
+      render: (inv) => <span className="text-muted-foreground">{formatDate(inv.invoice_date)}</span>,
     },
     {
-      key: 'treasury', header: 'Treasury',
-      cell: (inv) => inv.treasury_invoice_id
+      key: 'amount', header: 'Amount', sortable: true, accessor: (inv) => parseFloat(inv.amount),
+      render: (inv) => <span className="font-medium">{formatMoney(parseFloat(inv.amount))}</span>,
+    },
+    {
+      key: 'status', header: 'Status', accessor: (inv) => inv.status,
+      render: (inv) => <Badge variant={STATUS_VARIANT[inv.status]}>{inv.status}</Badge>,
+    },
+    {
+      key: 'treasury', header: 'Treasury', exportable: false,
+      accessor: (inv) => inv.treasury_invoice_id ?? '',
+      render: (inv) => inv.treasury_invoice_id
         ? <span className="text-xs text-muted-foreground font-mono truncate">{inv.treasury_invoice_id.slice(0, 8)}…</span>
         : <span className="text-xs text-muted-foreground">—</span>,
     },
@@ -110,7 +119,15 @@ export default function InvoicesPage() {
           <EmptyState icon={<FileText className="h-12 w-12" />} title="No invoices" description="Create an invoice to submit a vendor bill for payment." action={<Button onClick={() => setOpen(true)} className="gap-1.5"><Plus className="h-4 w-4" /> New Invoice</Button>} />
         </Card>
       ) : (
-        <DataTable columns={columns} rows={invoices} rowKey={(inv) => inv.id} loading={isLoading} />
+        <DataTable
+          columns={columns}
+          rows={invoices}
+          rowKey={(inv) => inv.id}
+          loading={isLoading}
+          storageKey="library-acq-invoices"
+          showExportCsv
+          exportFileName="acquisition-invoices"
+        />
       )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New Acquisition Invoice">

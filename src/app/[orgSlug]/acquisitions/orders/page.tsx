@@ -8,7 +8,7 @@ import { Plus, ShoppingCart } from 'lucide-react';
 import { useOrders, useCreateOrder, useVendors } from '@/hooks/useAcquisitions';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
@@ -62,24 +62,32 @@ export default function OrdersPage() {
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to create order')); }
   }
 
-  const columns: Column<PurchaseOrder>[] = [
+  const columns: DataTableColumn<PurchaseOrder>[] = [
     {
-      key: 'po_number', header: 'PO#', primary: true,
-      cell: (o) => <Link href={`/${orgSlug}/acquisitions/orders/${o.id}`} className="font-medium hover:text-primary">{o.po_number ?? 'DRAFT'}</Link>,
+      key: 'po_number', header: 'PO#', primary: true, sortable: true,
+      accessor: (o) => o.po_number ?? 'DRAFT',
+      render: (o) => <Link href={`/${orgSlug}/acquisitions/orders/${o.id}`} className="font-medium hover:text-primary">{o.po_number ?? 'DRAFT'}</Link>,
     },
     {
-      key: 'vendor', header: 'Vendor',
-      cell: (o) => {
+      key: 'vendor', header: 'Vendor', filterable: true,
+      accessor: (o) => vendors.find((v) => v.id === o.vendor_id)?.name ?? o.vendor_id,
+      render: (o) => {
         const v = vendors.find((v) => v.id === o.vendor_id);
         return <span>{v?.name ?? o.vendor_id.slice(0, 8)}</span>;
       },
     },
-    { key: 'order_date', header: 'Order Date', cell: (o) => <span className="text-muted-foreground">{formatDate(o.order_date)}</span> },
-    { key: 'total', header: 'Total', cell: (o) => <span className="font-medium">{formatMoney(parseFloat(o.total))} {o.currency_code}</span> },
-    { key: 'status', header: 'Status', cell: (o) => <Badge variant={STATUS_VARIANT[o.status]}>{o.status}</Badge> },
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (o) => <Link href={`/${orgSlug}/acquisitions/orders/${o.id}`}><Button variant="outline" size="sm">View</Button></Link>,
+      key: 'order_date', header: 'Order Date', sortable: true, accessor: (o) => o.order_date,
+      render: (o) => <span className="text-muted-foreground">{formatDate(o.order_date)}</span>,
+    },
+    {
+      key: 'total', header: 'Total', sortable: true, accessor: (o) => parseFloat(o.total),
+      render: (o) => <span className="font-medium">{formatMoney(parseFloat(o.total))} {o.currency_code}</span>,
+    },
+    { key: 'status', header: 'Status', accessor: (o) => o.status, render: (o) => <Badge variant={STATUS_VARIANT[o.status]}>{o.status}</Badge> },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (o) => <Link href={`/${orgSlug}/acquisitions/orders/${o.id}`} onClick={(e) => e.stopPropagation()}><Button variant="outline" size="sm">View</Button></Link>,
     },
   ];
 
@@ -111,7 +119,15 @@ export default function OrdersPage() {
           <EmptyState icon={<ShoppingCart className="h-12 w-12" />} title="No orders" description="Create a purchase order to order items from a vendor." action={<Button onClick={() => setOpen(true)} className="gap-1.5"><Plus className="h-4 w-4" /> New PO</Button>} />
         </Card>
       ) : (
-        <DataTable columns={columns} rows={orders} rowKey={(o) => o.id} loading={isLoading} />
+        <DataTable
+          columns={columns}
+          rows={orders}
+          rowKey={(o) => o.id}
+          loading={isLoading}
+          storageKey="library-po"
+          showExportCsv
+          exportFileName="purchase-orders"
+        />
       )}
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New Purchase Order">

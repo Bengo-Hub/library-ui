@@ -103,6 +103,25 @@ export function usePayMembershipFee(orgSlug: string) {
   });
 }
 
+// ── Bulk import ──
+export function useImportMembers(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => membersApi.importMembers(orgSlug, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'list', orgSlug] }),
+  });
+}
+
+/** Polls job status every ~1.5s while the import is running; stops once it's done. */
+export function useImportStatus(orgSlug: string, jobId: string | null) {
+  return useQuery({
+    queryKey: [KEY, 'import-status', orgSlug, jobId],
+    queryFn: () => membersApi.getImportStatus(orgSlug, jobId as string),
+    enabled: !!orgSlug && !!jobId,
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 1500 : false),
+  });
+}
+
 export function useDeleteMember(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({

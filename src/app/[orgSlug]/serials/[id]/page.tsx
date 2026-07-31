@@ -17,7 +17,7 @@ import {
 } from '@/hooks/useSerials';
 import { PageHeader } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
@@ -115,23 +115,27 @@ export default function SubscriptionDetailPage() {
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to add routing entry')); }
   }
 
-  const issueColumns: Column<SerialIssue>[] = [
+  const issueColumns: DataTableColumn<SerialIssue>[] = [
     {
-      key: 'volume', header: 'Vol/No',
-      cell: (i) => <span className="font-mono text-sm">{[i.volume, i.issue_no].filter(Boolean).join('/') || '—'}</span>,
+      key: 'volume', header: 'Vol/No', primary: true,
+      accessor: (i) => [i.volume, i.issue_no].filter(Boolean).join('/'),
+      render: (i) => <span className="font-mono text-sm">{[i.volume, i.issue_no].filter(Boolean).join('/') || '—'}</span>,
     },
-    { key: 'expected_date', header: 'Expected', cell: (i) => <span className="text-muted-foreground">{formatDate(i.expected_date)}</span> },
     {
-      key: 'received_date', header: 'Received',
-      cell: (i) => i.received_date
+      key: 'expected_date', header: 'Expected', sortable: true, accessor: (i) => i.expected_date,
+      render: (i) => <span className="text-muted-foreground">{formatDate(i.expected_date)}</span>,
+    },
+    {
+      key: 'received_date', header: 'Received', sortable: true, accessor: (i) => i.received_date ?? '',
+      render: (i) => i.received_date
         ? <span className="text-green-600">{formatDate(i.received_date)}</span>
         : <span className="text-muted-foreground">—</span>,
     },
-    { key: 'status', header: 'Status', cell: (i) => <Badge variant={ISSUE_VARIANT[i.status]}>{i.status}</Badge> },
+    { key: 'status', header: 'Status', accessor: (i) => i.status, render: (i) => <Badge variant={ISSUE_VARIANT[i.status]}>{i.status}</Badge> },
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (i) => (
-        <div className="flex gap-1.5 justify-end">
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (i) => (
+        <div className="flex gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
           {(i.status === 'EXPECTED' || i.status === 'LATE') && (
             <Button
               size="sm" variant="outline"
@@ -157,9 +161,9 @@ export default function SubscriptionDetailPage() {
     },
   ];
 
-  const routingColumns: Column<SerialRoutingEntry>[] = [
-    { key: 'position', header: '#', cell: (r) => <span className="font-medium">{r.position}</span> },
-    { key: 'member_id', header: 'Member', cell: (r) => <span className="font-mono text-xs">{r.member_id}</span> },
+  const routingColumns: DataTableColumn<SerialRoutingEntry>[] = [
+    { key: 'position', header: '#', primary: true, sortable: true, accessor: (r) => r.position, render: (r) => <span className="font-medium">{r.position}</span> },
+    { key: 'member_id', header: 'Member', accessor: (r) => r.member_id, render: (r) => <span className="font-mono text-xs">{r.member_id}</span> },
   ];
 
   if (subLoading) {

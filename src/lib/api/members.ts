@@ -84,6 +84,20 @@ export interface MemberTierInput {
   graduated_tier_id?: string | null;
 }
 
+export interface MemberImportError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+export interface MemberImportJob {
+  id: string;
+  status: 'running' | 'done';
+  total: number;
+  imported: number;
+  errors: MemberImportError[];
+}
+
 export interface LoanPolicy {
   id: string;
   name: string;
@@ -118,6 +132,21 @@ export const membersApi = {
   delete: (orgSlug: string, id: string) => apiClient.delete<{ deleted: boolean }>(`${libBase(orgSlug)}/members/${id}`),
   /** Printable membership card PDF (CR80 business card with a scannable CODE128 barcode). */
   cardPdf: (orgSlug: string, id: string) => apiClient.getBlob(`${libBase(orgSlug)}/members/${id}/card.pdf`),
+
+  // Bulk import (CSV, runs in the background — poll getImportStatus for progress).
+  importMembers: (orgSlug: string, file: File): Promise<{ job_id: string; status: 'running' }> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<{ job_id: string; status: 'running' }>(`${libBase(orgSlug)}/members/import`, form);
+  },
+  /** CSV template with the expected header row + one example row. */
+  downloadImportTemplate: (orgSlug: string): Promise<Blob> =>
+    apiClient.getBlob(`${libBase(orgSlug)}/members/import/template`),
+  getImportStatus: (orgSlug: string, jobId: string): Promise<MemberImportJob> =>
+    apiClient.get<MemberImportJob>(`${libBase(orgSlug)}/members/import/${jobId}`),
+  /** CSV of just the rows that failed to import for this job. */
+  getImportErrors: (orgSlug: string, jobId: string): Promise<Blob> =>
+    apiClient.getBlob(`${libBase(orgSlug)}/members/import/${jobId}/errors`),
 
   // Member tiers
   listTiers: async (orgSlug: string): Promise<MemberTier[]> => {

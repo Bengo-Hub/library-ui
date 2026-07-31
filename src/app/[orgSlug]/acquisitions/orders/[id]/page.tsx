@@ -11,7 +11,7 @@ import {
 } from '@/hooks/useAcquisitions';
 import { PageHeader, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
 import { type PurchaseOrderLine, type POLineInput, type ReceiveLineInput, type POStatus } from '@/lib/api/acquisitions';
@@ -83,10 +83,11 @@ export default function OrderDetailPage() {
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to receive items')); }
   }
 
-  const lineColumns: Column<PurchaseOrderLine>[] = [
+  const lineColumns: DataTableColumn<PurchaseOrderLine>[] = [
     {
       key: 'title', header: 'Title', primary: true,
-      cell: (l) => (
+      accessor: (l) => l.title,
+      render: (l) => (
         <div>
           <p className="font-medium">{l.title}</p>
           {l.author && <p className="text-xs text-muted-foreground">{l.author}</p>}
@@ -94,23 +95,26 @@ export default function OrderDetailPage() {
         </div>
       ),
     },
-    { key: 'unit_price', header: 'Unit Price', cell: (l) => formatMoney(parseFloat(String(l.unit_price))) },
-    { key: 'quantity', header: 'Qty', cell: (l) => l.quantity },
     {
-      key: 'received', header: 'Received',
-      cell: (l) => <span className={l.received_qty >= l.quantity ? 'text-green-600 font-medium' : ''}>{l.received_qty}/{l.quantity}</span>,
+      key: 'unit_price', header: 'Unit Price', sortable: true, accessor: (l) => parseFloat(String(l.unit_price)),
+      render: (l) => formatMoney(parseFloat(String(l.unit_price))),
+    },
+    { key: 'quantity', header: 'Qty', sortable: true, accessor: (l) => l.quantity, render: (l) => l.quantity },
+    {
+      key: 'received', header: 'Received', accessor: (l) => l.received_qty,
+      render: (l) => <span className={l.received_qty >= l.quantity ? 'text-green-600 font-medium' : ''}>{l.received_qty}/{l.quantity}</span>,
     },
     {
-      key: 'status', header: 'Status',
-      cell: (l) => {
+      key: 'status', header: 'Status', accessor: (l) => l.status,
+      render: (l) => {
         const v = l.status === 'RECEIVED' ? 'success' : l.status === 'PARTIAL' ? 'warning' : l.status === 'CANCELLED' ? 'error' : 'outline';
         return <Badge variant={v as any}>{l.status}</Badge>;
       },
     },
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (l) => canReceive && l.status !== 'RECEIVED' && l.status !== 'CANCELLED' ? (
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openReceive(l)}>
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (l) => canReceive && l.status !== 'RECEIVED' && l.status !== 'CANCELLED' ? (
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={(e: React.MouseEvent) => { e.stopPropagation(); openReceive(l); }}>
           <Truck className="h-3.5 w-3.5" /> Receive
         </Button>
       ) : null,

@@ -11,10 +11,11 @@ import { catalogApi } from '@/lib/api/catalog';
 import { usePlaceHold } from '@/hooks/useHolds';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { Skeleton } from '@/components/ui/page';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { CoverThumb } from '@/components/library/CoverThumb';
 import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
-import { COPY_STATUSES } from '@/lib/api/copies';
+import { COPY_STATUSES, type Copy } from '@/lib/api/copies';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
 import { languageName } from '@/lib/languages';
@@ -93,6 +94,29 @@ export default function BibDetailPage() {
     return <div className="max-w-5xl mx-auto p-8 text-center text-muted-foreground">Title not found.</div>;
   }
 
+  const copyColumns: DataTableColumn<Copy>[] = [
+    {
+      key: 'barcode', header: 'Accession / Barcode Number', primary: true,
+      accessor: (c) => c.barcode,
+      render: (c) => <span className="font-mono text-xs">{c.barcode}</span>,
+    },
+    { key: 'branch', header: 'Branch', accessor: (c) => c.branch_name ?? '', render: (c) => c.branch_name ?? '—' },
+    { key: 'shelf', header: 'Shelf', accessor: (c) => c.shelf_location ?? '', render: (c) => c.shelf_location ?? '—' },
+    {
+      key: 'status', header: 'Status', accessor: (c) => c.status,
+      render: (c) => (
+        <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>
+          {COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}
+        </Badge>
+      ),
+    },
+    {
+      key: 'due', header: 'Due',
+      accessor: (c) => c.due_date ?? '',
+      render: (c) => <span className="text-muted-foreground">{c.due_date ? formatDate(c.due_date) : '—'}</span>,
+    },
+  ];
+
   const meta: { label: string; value?: string | number | null }[] = [
     { label: 'Author', value: bib.authors?.join(', ') || bib.author },
     { label: 'Publisher', value: bib.publisher },
@@ -104,7 +128,6 @@ export default function BibDetailPage() {
     { label: 'ISSN', value: bib.issn },
     { label: 'Language', value: languageName(bib.language) },
     { label: 'Dewey', value: bib.dewey },
-    { label: 'Call number', value: bib.call_number },
     { label: 'Collection', value: bib.collection_name },
     { label: 'Pages', value: bib.pages },
   ];
@@ -183,45 +206,19 @@ export default function BibDetailPage() {
         <Link href={`/${orgSlug}/copies?bib=${bib.id}`} className="text-sm font-semibold text-primary hover:underline">Manage copies</Link>
       </div>
 
-      <Card className="mt-3">
-        {copiesLoading ? (
-          <div className="p-6 space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-        ) : copies.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
+      <DataTable<Copy>
+        className="mt-3"
+        columns={copyColumns}
+        rows={copies}
+        rowKey={(c) => c.id}
+        loading={copiesLoading}
+        emptyState={
+          <div className="text-center text-sm text-muted-foreground">
             No copies attached.{' '}
             <Link href={`/${orgSlug}/copies?bib=${bib.id}`} className="text-primary hover:underline">Add the first copy.</Link>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-semibold">Barcode</th>
-                  <th className="px-5 py-3 font-semibold">Branch</th>
-                  <th className="px-5 py-3 font-semibold">Shelf</th>
-                  <th className="px-5 py-3 font-semibold">Status</th>
-                  <th className="px-5 py-3 font-semibold">Due</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {copies.map((c) => (
-                  <tr key={c.id} className="hover:bg-accent/30">
-                    <td className="px-5 py-3 font-mono text-xs">{c.barcode}</td>
-                    <td className="px-5 py-3">{c.branch_name ?? '—'}</td>
-                    <td className="px-5 py-3">{c.shelf_location ?? '—'}</td>
-                    <td className="px-5 py-3">
-                      <Badge variant={STATUS_VARIANT[c.status] ?? 'outline'}>
-                        {COPY_STATUSES.find((s) => s.value === c.status)?.label ?? c.status}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">{c.due_date ? formatDate(c.due_date) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+        }
+      />
 
       {recs.length > 0 && (
         <>

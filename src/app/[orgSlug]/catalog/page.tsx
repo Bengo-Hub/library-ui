@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Library, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { Library, Plus, Search, SlidersHorizontal, ScanLine, Eye } from 'lucide-react';
 import { useCatalogSearch, useCatalogFacets } from '@/hooks/useCatalog';
 import { useDebounce } from '@/hooks/useDebounce';
 import { BIB_FORMATS, type BibFormat } from '@/lib/api/catalog';
@@ -11,9 +11,12 @@ import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
 import { Button } from '@/components/ui/base';
 import { Pagination } from '@/components/ui/pagination';
 import { CapsuleTabs } from '@/components/ui/tabs';
+import { Dialog } from '@/components/ui/dialog';
 import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
 import { CoverThumb } from '@/components/library/CoverThumb';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
+import { useImagePreview, ImagePreview } from '@bengo-hub/shared-ui-lib';
 import { Can } from '@/components/auth/Can';
 
 const PAGE_SIZE = 18;
@@ -29,7 +32,9 @@ function CatalogContent() {
   const [branchId, setBranchId] = useState('');
   const [availableOnly, setAvailableOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const [scanOpen, setScanOpen] = useState(false);
   const debouncedQ = useDebounce(q, 350);
+  const { openPreview, previewProps } = useImagePreview();
 
   useEffect(() => { setPage(1); }, [debouncedQ, format, subjectId, branchId, availableOnly]);
 
@@ -71,11 +76,29 @@ function CatalogContent() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by title, author, ISBN, subject…"
-            className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-4 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+            className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-16 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
           />
+          <button
+            type="button"
+            onClick={() => setScanOpen(true)}
+            title="Scan ISBN/barcode to search"
+            aria-label="Scan ISBN/barcode to search"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <ScanLine className="h-4 w-4" />
+          </button>
         </div>
         {isFetching && <span className="text-xs text-muted-foreground">Searching…</span>}
       </div>
+
+      <Dialog open={scanOpen} onClose={() => setScanOpen(false)} title="Scan ISBN or barcode">
+        {scanOpen && (
+          <BarcodeScanner
+            hint="Point the camera at the ISBN or copy barcode to search the catalog."
+            onScan={(text) => { setQ(text); setScanOpen(false); }}
+          />
+        )}
+      </Dialog>
 
       <CapsuleTabs
         className="mb-3"
@@ -135,9 +158,28 @@ function CatalogContent() {
             <Link
               key={bib.id}
               href={`/${orgSlug}/catalog/${bib.id}`}
-              className="group rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
+              className="group relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm hover:border-primary/40 hover:shadow-md transition-all"
             >
               <CoverThumb url={bib.cover_url} title={bib.title} className="aspect-[3/4] w-full" />
+              {(bib.cover_url || bib.cover_back_url) && (
+                <button
+                  type="button"
+                  title="View cover"
+                  aria-label="View cover"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openPreview({
+                      src: bib.cover_url ?? bib.cover_back_url ?? '',
+                      secondarySrc: bib.cover_url ? bib.cover_back_url : undefined,
+                      title: bib.title,
+                    });
+                  }}
+                  className="absolute top-2 right-2 z-10 h-8 w-8 flex items-center justify-center rounded-lg bg-background/80 backdrop-blur text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shadow-sm"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              )}
               <div className="p-3 space-y-1.5">
                 <p className="text-sm font-semibold leading-tight line-clamp-2 group-hover:text-primary transition-colors">{bib.title}</p>
                 {bib.author && <p className="text-xs text-muted-foreground truncate">{bib.author}</p>}
@@ -149,6 +191,8 @@ function CatalogContent() {
       )}
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      <ImagePreview {...previewProps} />
     </div>
   );
 }

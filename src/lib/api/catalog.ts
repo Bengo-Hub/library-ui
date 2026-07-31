@@ -28,7 +28,6 @@ export interface BibRecord {
   format: BibFormat;
   language?: string;
   dewey?: string;
-  call_number?: string;
   subjects?: string[];
   collection_id?: string;
   collection_name?: string;
@@ -59,7 +58,6 @@ export interface BibInput {
   format: BibFormat;
   language?: string;
   dewey?: string;
-  call_number?: string;
   subjects?: string[];
   collection_id?: string;
   description?: string;
@@ -83,12 +81,6 @@ export interface IsbnLookupResult {
   description?: string;
   subjects?: string[];
   language?: string;
-}
-
-export interface NamedEntity {
-  id: string;
-  name: string;
-  count?: number;
 }
 
 export interface LibraryCollection {
@@ -118,10 +110,13 @@ export interface BibListParams {
 /**
  * Anti-corruption layer between the UI's friendly field names and the library-api / Ent model.
  * The backend stores MARC-style names (isbn13/isbn10, publisher_name, ddc_classification,
- * lc_call_number, summary, cover_image_url, page_count, authors[]) and a 4-value format enum
- * (PHYSICAL/EBOOK/AUDIOBOOK/PERIODICAL). The UI speaks isbn/publisher/dewey/call_number/
+ * summary, cover_image_url, page_count, authors[]) and a 4-value format enum
+ * (PHYSICAL/EBOOK/AUDIOBOOK/PERIODICAL). The UI speaks isbn/publisher/dewey/
  * description/cover_url/pages/author and a richer lowercase format list. Without this mapping,
  * ISBN-prefilled details were silently dropped on save and not shown on read.
+ *
+ * Note: call number is deliberately NOT a title-level field — it's per-copy (see BookCopy /
+ * CopyFormDialog), since different copies of the same title can be shelved differently.
  */
 const FORMAT_TO_API: Record<BibFormat, string> = {
   book: 'PHYSICAL', ebook: 'EBOOK', audiobook: 'AUDIOBOOK', periodical: 'PERIODICAL',
@@ -149,7 +144,6 @@ function toBibPayload(input: Partial<BibInput>): Record<string, unknown> {
   put('edition', input.edition);
   put('language', input.language);
   put('ddc_classification', input.dewey);
-  put('lc_call_number', input.call_number);
   put('summary', input.description);
   put('cover_image_url', input.cover_url);
   put('cover_back_image_url', input.cover_back_url);
@@ -174,7 +168,6 @@ function fromBibRecord(raw: BibRecord | Record<string, unknown> | null | undefin
     authors,
     publisher: r.publisher ?? r.publisher_name ?? undefined,
     dewey: r.dewey ?? r.ddc_classification ?? undefined,
-    call_number: r.call_number ?? r.lc_call_number ?? undefined,
     description: r.description ?? r.summary ?? undefined,
     cover_url: r.cover_url ?? r.cover_image_url ?? undefined,
     cover_back_url: r.cover_back_url ?? r.cover_back_image_url ?? undefined,
@@ -239,18 +232,6 @@ export const catalogApi = {
   },
 
   // Reference lists
-  listAuthors: async (orgSlug: string): Promise<NamedEntity[]> => {
-    const res = await apiClient.get<{ data?: NamedEntity[] } | NamedEntity[]>(`${libBase(orgSlug)}/catalog/authors`);
-    return Array.isArray(res) ? res : (res.data ?? []);
-  },
-  listPublishers: async (orgSlug: string): Promise<NamedEntity[]> => {
-    const res = await apiClient.get<{ data?: NamedEntity[] } | NamedEntity[]>(`${libBase(orgSlug)}/catalog/publishers`);
-    return Array.isArray(res) ? res : (res.data ?? []);
-  },
-  listSubjects: async (orgSlug: string): Promise<NamedEntity[]> => {
-    const res = await apiClient.get<{ data?: NamedEntity[] } | NamedEntity[]>(`${libBase(orgSlug)}/catalog/subjects`);
-    return Array.isArray(res) ? res : (res.data ?? []);
-  },
   listCollections: async (orgSlug: string): Promise<LibraryCollection[]> => {
     const res = await apiClient.get<{ data?: LibraryCollection[] } | LibraryCollection[]>(`${libBase(orgSlug)}/catalog/collections`);
     return Array.isArray(res) ? res : (res.data ?? []);

@@ -4,17 +4,18 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2, CreditCard } from 'lucide-react';
+import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2, CreditCard, Upload } from 'lucide-react';
 import { useMembers, useCreateMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
 import { membersApi } from '@/lib/api/members';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, EmptyState } from '@/components/ui/page';
-import { Button, Badge, Card } from '@/components/ui/base';
-import { DataTable, type Column } from '@/components/ui/data-table';
+import { Button, Badge } from '@/components/ui/base';
+import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Pagination } from '@/components/ui/pagination';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { MemberFormDialog } from '@/components/library/MemberFormDialog';
+import { ImportMembersDialog } from '@/components/library/ImportMembersDialog';
 import { MembershipPaymentModal, type PaymentIntent } from '@/components/library/MembershipPaymentModal';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { type Member, type MemberInput, type MemberStatus } from '@/lib/api/members';
@@ -48,6 +49,7 @@ export default function MembersPage() {
   const [editing, setEditing] = useState<Member | undefined>();
   const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
   const [toDelete, setToDelete] = useState<Member | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   async function chargeFee(m: Member) {
     try { setPayIntent(await issueFee.mutateAsync(m.id)); }
@@ -76,25 +78,33 @@ export default function MembersPage() {
   const members = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
 
-  const columns: Column<Member>[] = [
+  const columns: DataTableColumn<Member>[] = [
     {
-      key: 'member', header: 'Member', primary: true,
-      cell: (m) => (
+      key: 'member', header: 'Member', primary: true, sortable: true,
+      accessor: (m) => m.full_name ?? `${m.first_name} ${m.last_name}`,
+      render: (m) => (
         <>
           <Link href={`/${orgSlug}/members/${m.id}`} className="font-medium hover:text-primary">{m.full_name ?? `${m.first_name} ${m.last_name}`}</Link>
           {m.email && <p className="text-xs text-muted-foreground">{m.email}</p>}
         </>
       ),
     },
-    { key: 'no', header: 'No.', mobileLabel: 'Member No.', cell: (m) => <span className="font-mono text-xs">{m.membership_no}</span> },
-    { key: 'tier', header: 'Tier', cell: (m) => m.tier_name ?? '—' },
-    { key: 'loans', header: 'Loans', cell: (m) => m.active_loans ?? 0 },
-    { key: 'fines', header: 'Fines', cell: (m) => (m.outstanding_fines ?? 0) > 0 ? <span className="text-destructive font-medium">{formatMoney(m.outstanding_fines)}</span> : '—' },
-    { key: 'status', header: 'Status', cell: (m) => <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge> },
     {
-      key: 'actions', header: '', actions: true, align: 'right',
-      cell: (m) => (
-        <div className="flex items-center justify-end gap-0.5">
+      key: 'no', header: 'No.', mobileLabel: 'Member No.', sortable: true,
+      accessor: (m) => m.membership_no,
+      render: (m) => <span className="font-mono text-xs">{m.membership_no}</span>,
+    },
+    { key: 'tier', header: 'Tier', filterable: true, accessor: (m) => m.tier_name ?? '—', render: (m) => m.tier_name ?? '—' },
+    { key: 'loans', header: 'Loans', sortable: true, accessor: (m) => m.active_loans ?? 0, render: (m) => m.active_loans ?? 0 },
+    {
+      key: 'fines', header: 'Fines', sortable: true, accessor: (m) => m.outstanding_fines ?? 0,
+      render: (m) => (m.outstanding_fines ?? 0) > 0 ? <span className="text-destructive font-medium">{formatMoney(m.outstanding_fines)}</span> : '—',
+    },
+    { key: 'status', header: 'Status', accessor: (m) => m.status, render: (m) => <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge> },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (m) => (
+        <div className="flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
           <Link href={`/${orgSlug}/members/${m.id}`}>
             <Button variant="ghost" size="icon" title="View"><Eye className="h-4 w-4" /></Button>
           </Link>
@@ -145,6 +155,7 @@ export default function MembersPage() {
             <Link href={`/${orgSlug}/members/tiers`}><Button variant="outline">Tiers</Button></Link>
             <Link href={`/${orgSlug}/members/policies`}><Button variant="outline">Policies</Button></Link>
             <Can perm="library.members.add">
+              <Button variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" /> Import</Button>
               <FeatureLock feature="library_members" mode="block">
                 <Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> New Member</Button>
               </FeatureLock>
@@ -171,17 +182,24 @@ export default function MembersPage() {
         ]}
       />
 
-      <Card>
-        <DataTable
-          columns={columns}
-          rows={members}
-          rowKey={(m) => m.id}
-          loading={isLoading}
-          empty={<EmptyState icon={<Users className="h-12 w-12" />} title="No members" description={debouncedQ ? 'No members matched your search.' : 'Add your first member.'} action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Member</Button>} />}
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        rows={members}
+        rowKey={(m) => m.id}
+        loading={isLoading}
+        emptyState={<EmptyState icon={<Users className="h-12 w-12" />} title="No members" description={debouncedQ ? 'No members matched your search.' : 'Add your first member.'} action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Member</Button>} />}
+        storageKey="library-members"
+        showExportCsv
+        exportFileName="library-members"
+      />
 
       <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+
+      <ImportMembersDialog
+        open={importOpen}
+        orgSlug={orgSlug}
+        onClose={() => setImportOpen(false)}
+      />
 
       <MemberFormDialog
         open={dialogOpen}

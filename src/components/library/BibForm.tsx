@@ -19,7 +19,7 @@ export interface BibCovers { front?: File; back?: File }
 
 const EMPTY: BibInput = {
   title: '', author: '', authors: [], publisher: '', isbn: '', format: 'book', language: 'en',
-  publication_year: null, edition: '', dewey: '', call_number: '', subjects: [], description: '',
+  publication_year: null, edition: '', dewey: '', subjects: [], description: '',
   cover_url: null, cover_back_url: null, publication_place: '', other_isbns: [],
 };
 
@@ -55,7 +55,7 @@ export function BibForm({
         title: initial.title, subtitle: initial.subtitle, author: initial.author, authors,
         publisher: initial.publisher, publication_year: initial.publication_year ?? null, edition: initial.edition,
         isbn: initial.isbn, issn: initial.issn, format: initial.format, language: initial.language || 'en',
-        dewey: initial.dewey, call_number: initial.call_number, subjects: initial.subjects ?? [],
+        dewey: initial.dewey, subjects: initial.subjects ?? [],
         collection_id: initial.collection_id, description: initial.description, cover_url: initial.cover_url,
         cover_back_url: initial.cover_back_url, publication_place: initial.publication_place, other_isbns: initial.other_isbns ?? [],
         pages: initial.pages ?? null,
@@ -138,15 +138,20 @@ export function BibForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* ISBN scan row */}
       <div className="rounded-2xl border border-border bg-accent/20 p-4">
-        <Field label="ISBN" hint="Scan or type the ISBN to auto-fill title, author, publisher, cover and synopsis. You can always edit or type everything manually.">
+        <Field label="ISBN" hint="Scan the ISBN to auto-fill title, author, publisher, cover and synopsis — or type it and press Enter. You can always edit or type everything manually.">
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <input
                 value={form.isbn ?? ''}
                 onChange={(e) => set('isbn', e.target.value)}
-                onBlur={(e) => e.target.value && runIsbnLookup(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.currentTarget.value) runIsbnLookup(e.currentTarget.value);
+                  }
+                }}
                 inputMode="numeric"
-                placeholder="978…"
+                placeholder="978… (press Enter to look up)"
                 className="w-full rounded-lg border border-input bg-card px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
               />
               {isbnLookup.isPending && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
@@ -232,9 +237,6 @@ export function BibForm({
           </Field>
           <Field label="Dewey / classification">
             <input value={form.dewey ?? ''} onChange={(e) => set('dewey', e.target.value)} placeholder="823.914" className={INPUT} />
-          </Field>
-          <Field label="Call number">
-            <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} placeholder="PR9381.9…" className={INPUT} />
           </Field>
           <Field label="Collection">
             <Combobox
