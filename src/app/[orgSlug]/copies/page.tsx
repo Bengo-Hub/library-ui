@@ -29,7 +29,7 @@ import { getLabelPrintPrefs, setLabelPrintPrefs } from '@/lib/library/label-prin
 // Sizes/gaps are engineering estimates fit within a ≤80mm thermal roll (e.g. Xprinter XP-330B)
 // — libraries with different real stock should pick "Custom". See library-api/docs/barcode-labels.md.
 const THERMAL_TEMPLATES: { value: LabelTemplateName; label: string; hint: string }[] = [
-  { value: '1row_62x29', label: '1 row — 62x29mm (default)', hint: 'Single lane, matches the pre-existing spine/holding label size' },
+  { value: '1row_29x62', label: '1 row — 29x62mm (default, bench-verified)', hint: 'Single lane; matches the real spine/holding label roll confirmed on an Xprinter XP-330B' },
   { value: '2row_35x29', label: '2 rows — 35x29mm each', hint: 'Wider roll, 2 labels side by side' },
   { value: '3row_23x29', label: '3 rows — 23x29mm each', hint: 'Wider roll, 3 labels side by side' },
   { value: '4row_17x29', label: '4 rows — 17x29mm each', hint: 'Wider roll, 4 labels side by side' },
@@ -71,10 +71,10 @@ function CopiesContent() {
   // otherwise a template fixed here for the bulk job wouldn't apply to the per-row button.
   const initialLabelPrefs = useState(() => getLabelPrintPrefs())[0];
   const [bulkFormat, setBulkFormat] = useState<LabelFormat>(initialLabelPrefs.format ?? 'avery_a4');
-  const [bulkTemplate, setBulkTemplate] = useState<LabelTemplateName>(initialLabelPrefs.template ?? '1row_62x29');
+  const [bulkTemplate, setBulkTemplate] = useState<LabelTemplateName>(initialLabelPrefs.template ?? '1row_29x62');
   const [bulkRotate, setBulkRotate] = useState(initialLabelPrefs.rotate ?? false);
-  const [customW, setCustomW] = useState(initialLabelPrefs.custom_label_w_in ?? 62 / 25.4);
-  const [customH, setCustomH] = useState(initialLabelPrefs.custom_label_h_in ?? 29 / 25.4);
+  const [customW, setCustomW] = useState(initialLabelPrefs.custom_label_w_in ?? 29 / 25.4);
+  const [customH, setCustomH] = useState(initialLabelPrefs.custom_label_h_in ?? 62 / 25.4);
   const [customLanes, setCustomLanes] = useState(initialLabelPrefs.custom_lanes ?? 1);
   const [customGapX, setCustomGapX] = useState(initialLabelPrefs.custom_gap_x_in ?? 0.08);
   const [customGapY, setCustomGapY] = useState(initialLabelPrefs.custom_gap_y_in ?? 0.08);
@@ -169,7 +169,7 @@ function CopiesContent() {
   // "print" icon never diverges from whatever template/rotate/format the bulk job was fixed to
   // use — that divergence (the row button calling labelPdf() bare, with no template/rotate at
   // all) was the bug: the bulk path could be printing correctly while the row button still
-  // silently defaulted to an un-rotated 62x29mm template regardless.
+  // silently defaulted to an un-rotated 29x62mm template regardless.
   function labelPrintOpts() {
     return {
       format: bulkFormat,
@@ -200,9 +200,41 @@ function CopiesContent() {
     };
   }
 
+  /** Attempts direct-USB thermal printing via the local agent when a printer is remembered, and
+   *  ALWAYS falls back to opening a normal browser-printable PDF (avery_a4) when no printer is
+   *  configured or the agent rejects/can't be reached — a raw .tspl text download is not
+   *  something an end user can act on by itself, so it must never be the only outcome (this was
+   *  the reported gap: "no fallback browser printing if printer is not detected"). The agent
+   *  attempt is made directly regardless of the earlier agentUp probe (see printRawToLocalName's
+   *  doc comment) since that probe can occasionally disagree with a live attempt. */
+  async function printThermalOrFallbackToPdf(opts: {
+    fetchTspl: () => Promise<Blob>;
+    fetchPdf: () => Promise<Blob>;
+    pdfFileName: string;
+    pdfTitle: string;
+  }) {
+    if (selectedPrinter) {
+      try {
+        const blob = await opts.fetchTspl();
+        const hex = await blobToHex(blob);
+        const ok = await printRawToLocalName(selectedPrinter, hex);
+        if (ok) {
+          toast.success(`Sent to ${selectedPrinter}`);
+          return;
+        }
+      } catch {
+        // fall through to the PDF fallback below
+      }
+      toast.error('Could not reach the local print agent — opening a printable PDF instead');
+    } else {
+      toast('No printer configured for direct USB printing — opening a printable PDF instead. Set one in Settings > Printing.');
+    }
+    void openPreview(opts.fetchPdf, { fileName: opts.pdfFileName, title: opts.pdfTitle, orientation: 'portrait' });
+  }
+
   /** Quick single-copy print — reuses the SAME format/template/rotate/printer as the bulk
-   *  dialog (see labelPrintOpts). format=thermal_tspl isn't a previewable PDF: sends straight to
-   *  the remembered printer via the local print-agent when reachable, else downloads. */
+   *  dialog (see labelPrintOpts). format=avery_a4 previews the PDF directly; format=thermal_tspl
+   *  goes through printThermalOrFallbackToPdf (agent print, or a printable PDF fallback). */
   function printLabel(copy: Copy) {
     const opts = labelPrintOpts();
     if (opts.format !== 'thermal_tspl') {
@@ -211,55 +243,25 @@ function CopiesContent() {
       });
       return;
     }
-    void (async () => {
-      try {
-        const blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
-        if (agentUp && selectedPrinter) {
-          const hex = await blobToHex(blob);
-          const ok = await printRawToLocalName(selectedPrinter, hex);
-          if (ok) {
-            toast.success(`Sent to ${selectedPrinter}`);
-            return;
-          }
-          toast.error('Local print agent rejected the job — downloading instead');
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `label-${copy.barcode}.tspl`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        toast.error(await apiErrorMessage(e, 'Failed to generate label'));
-      }
-    })();
+    void printThermalOrFallbackToPdf({
+      fetchTspl: () => copiesApi.labelPdf(orgSlug, copy.id, opts),
+      fetchPdf: () => copiesApi.labelPdf(orgSlug, copy.id, { format: 'avery_a4' }),
+      pdfFileName: `label-${copy.barcode}.pdf`,
+      pdfTitle: 'Spine / barcode label',
+    });
   }
 
   function handleBulkPrint() {
+    setBulkPrintOpen(false);
     if (bulkFormat === 'thermal_tspl') {
-      // Raw TSPL text isn't a previewable PDF — download it instead (or use "Print via Local
-      // Agent" below to send it straight to the printer without downloading anything).
-      void (async () => {
-        try {
-          const blob = await copiesApi.printLabels(orgSlug, bulkPrintBody());
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `copy-labels-${Date.now()}.tspl`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-          setBulkPrintOpen(false);
-        } catch (e) {
-          toast.error(await apiErrorMessage(e, 'Failed to generate labels'));
-        }
-      })();
+      void printThermalOrFallbackToPdf({
+        fetchTspl: () => copiesApi.printLabels(orgSlug, bulkPrintBody()),
+        fetchPdf: () => copiesApi.printLabels(orgSlug, { status: statusFilter || undefined, branch_id: branchFilter || undefined, sheet: bulkSheet, format: 'avery_a4' }),
+        pdfFileName: 'copy-labels.pdf',
+        pdfTitle: 'Bulk copy labels',
+      });
       return;
     }
-    setBulkPrintOpen(false);
     void openPreview(
       () => copiesApi.printLabels(orgSlug, bulkPrintBody()),
       { fileName: 'copy-labels.pdf', title: 'Bulk copy labels', orientation: 'portrait' },
@@ -268,7 +270,9 @@ function CopiesContent() {
 
   /** Print directly via USB through the local print-agent (see lib/library/print-agent.ts) —
    *  bypasses the OS print dialog entirely, which is what produced the rotated-label bug this
-   *  feature fixes. Only offered for format=thermal_tspl (raw printer command bytes). */
+   *  feature fixes. Only offered for format=thermal_tspl (raw printer command bytes). Unlike
+   *  handleBulkPrint's fallback, this button is an explicit "force via agent" action, so it
+   *  errors out (rather than silently falling back to a PDF) when nothing is picked/reachable. */
   async function printBulkViaAgent() {
     if (!selectedPrinter) {
       toast.error('Pick a printer first');
@@ -461,7 +465,7 @@ function CopiesContent() {
             <>
               <Button variant="outline" onClick={() => setBulkPrintOpen(false)}>Cancel</Button>
               <Button onClick={handleBulkPrint}>
-                {bulkFormat === 'avery_a4' ? 'Print sheet' : 'Download TSPL'}
+                {bulkFormat === 'avery_a4' ? 'Print sheet' : 'Print'}
               </Button>
             </>
           }

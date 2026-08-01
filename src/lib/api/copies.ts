@@ -38,7 +38,7 @@ export interface Copy {
 // — see library-api/docs/barcode-labels.md). format defaults to "avery_a4" server-side when
 // omitted, so old callers with no opinion keep getting the pre-existing Avery-sheet PDF.
 export type LabelFormat = 'avery_a4' | 'thermal_tspl';
-export type LabelTemplateName = '1row_62x29' | '2row_35x29' | '3row_23x29' | '4row_17x29' | 'custom';
+export type LabelTemplateName = '1row_29x62' | '2row_35x29' | '3row_23x29' | '4row_17x29' | 'custom';
 
 export interface LabelPrintOpts {
   format?: LabelFormat;
