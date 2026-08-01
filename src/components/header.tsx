@@ -2,28 +2,39 @@
 
 import { useAuthStore } from '@/store/auth';
 import { useState } from 'react';
-import { Bell, BookOpen, ChevronDown, CreditCard, ExternalLink, Globe, LogOut, Menu, Search, Settings, ShoppingCart, Tag, User } from 'lucide-react';
+import { Bell, BookOpen, ChevronDown, CreditCard, ExternalLink, LogOut, Menu, Search, Settings, ShoppingCart, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
 import { usePermissions } from '@/hooks/usePermissions';
 import { pinApi } from '@/lib/api/pin';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
+import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
 import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 
+// library-ui links to only a curated subset of the shared registry (librarians don't need
+// Logistics/CRM/ERP shortcuts) via `include` — POS and Treasury stay local since library-ui was
+// already linking to them before the shared registry existed and neither is in scope to
+// generalize this session.
 const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com';
 const TREASURY_URL = process.env.NEXT_PUBLIC_TREASURY_UI_URL ?? 'https://books.codevertexafrica.com';
-const PRICING_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com';
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com';
-
-const SERVICES = [
-  { label: 'POS',            href: (slug: string) => `${POS_URL}/${slug}`,      Icon: ShoppingCart },
-  { label: 'Treasury',       href: (slug: string) => `${TREASURY_URL}/${slug}`,  Icon: BookOpen },
-  { label: 'Subscriptions',  href: (slug: string) => `${PRICING_URL}/${slug}`,   Icon: Tag },
-  { label: 'Account Portal', href: (slug: string) => `${AUTH_URL}/${slug}`,      Icon: Globe },
-] as const;
+const LIBRARY_SERVICE_KEYS: ServiceKey[] = [
+  'subscriptions',
+  'auth',
+  'projects',
+  'afya',
+  'sourcing',
+  'traceability',
+  'ticketing',
+];
+const SERVICE_URLS: Partial<Record<ServiceKey, string>> = {
+  subscriptions: process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com',
+  auth: process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com',
+  projects: process.env.NEXT_PUBLIC_PROJECTS_UI_URL ?? 'https://projects.codevertexafrica.com',
+  afya: process.env.NEXT_PUBLIC_HOSPITAL_UI_URL ?? 'https://afya.codevertexafrica.com',
+};
 
 function displayName(user: { fullName?: string; name?: string; email?: string } | null): string {
   if (!user) return 'Account';
@@ -49,6 +60,14 @@ export function Header({ onMenuClick }: HeaderProps) {
   const isAuthenticated = !!user && !!session;
   const name = displayName(user);
   const role = user?.roles?.[0];
+
+  // No RBAC/subscription gating today (matches prior behavior); activeServiceTags omitted (fails open).
+  const services = useVisibleServices({
+    orgSlug,
+    urls: SERVICE_URLS,
+    canManageLinks: true,
+    include: LIBRARY_SERVICE_KEYS,
+  });
 
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
   function downloadMyCard() {
@@ -175,22 +194,62 @@ export function Header({ onMenuClick }: HeaderProps) {
 
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 mb-1.5">Services</p>
                   <div className="grid gap-1">
-                    {SERVICES.map(({ label, href, Icon }) => (
-                      <a
-                        key={label}
-                        href={href(orgSlug)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                          <Icon className="h-4 w-4" />
+                    <a
+                      href={`${POS_URL}/${orgSlug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
+                        <ShoppingCart className="h-4 w-4" />
+                      </div>
+                      <span className="flex-1">POS</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
+                    </a>
+                    <a
+                      href={`${TREASURY_URL}/${orgSlug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
+                        <BookOpen className="h-4 w-4" />
+                      </div>
+                      <span className="flex-1">Treasury</span>
+                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
+                    </a>
+                    {services.map(({ key, label, href, Icon }) =>
+                      href ? (
+                        <a
+                          key={key}
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="flex-1">{label}</span>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
+                        </a>
+                      ) : (
+                        <div
+                          key={key}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-muted-foreground/50 cursor-default"
+                          title={`${label} — coming soon`}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="flex-1">{label}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-accent px-1.5 py-0.5 rounded-full">Soon</span>
                         </div>
-                        <span className="flex-1">{label}</span>
-                        <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
-                      </a>
-                    ))}
+                      ),
+                    )}
                   </div>
 
                   <div className="h-px bg-border my-2 mx-1" />
