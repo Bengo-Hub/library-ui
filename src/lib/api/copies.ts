@@ -34,6 +34,23 @@ export interface Copy {
   updated_at?: string;
 }
 
+// Label-print format/template options (mirrors library-api's LabelTemplateByName/resolveTemplate
+// — see library-api/docs/barcode-labels.md). format defaults to "avery_a4" server-side when
+// omitted, so old callers with no opinion keep getting the pre-existing Avery-sheet PDF.
+export type LabelFormat = 'avery_a4' | 'thermal_tspl';
+export type LabelTemplateName = '1row_62x29' | '2row_35x29' | '3row_23x29' | '4row_17x29' | 'custom';
+
+export interface LabelPrintOpts {
+  format?: LabelFormat;
+  template?: LabelTemplateName;
+  rotate?: boolean;
+  custom_label_w_in?: number;
+  custom_label_h_in?: number;
+  custom_lanes?: number;
+  custom_gap_x_in?: number;
+  custom_gap_y_in?: number;
+}
+
 export interface CopyInput {
   bib_record_id: string;
   barcode?: string;
@@ -75,11 +92,14 @@ export const copiesApi = {
   /** Direct link to the spine/barcode label PDF (carries auth via the apiClient blob fetch). */
   labelUrl: (orgSlug: string, id: string) => `${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`,
 
-  labelPdf: (orgSlug: string, id: string) =>
-    apiClient.getBlob(`${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`),
+  // format/template/rotate select thermal-native TSPL output (see labelUrl's own docs) instead
+  // of the default Avery-sheet-shaped PDF — see library-api/docs/barcode-labels.md.
+  labelPdf: (orgSlug: string, id: string, opts?: LabelPrintOpts) =>
+    apiClient.getBlob(`${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`, opts),
 
-  /** Bulk print: renders an Avery-sheet PDF of holding labels for many copies at once. */
-  printLabels: (orgSlug: string, body: { copy_ids?: string[]; bib_id?: string; branch_id?: string; status?: string; sheet?: string }) =>
+  /** Bulk print: renders an Avery-sheet PDF (format=avery_a4, default) or raw TSPL text
+   *  (format=thermal_tspl) of holding labels for many copies at once. */
+  printLabels: (orgSlug: string, body: { copy_ids?: string[]; bib_id?: string; branch_id?: string; status?: string; sheet?: string } & LabelPrintOpts) =>
     apiClient.postBlob(`${libBase(orgSlug)}/catalog/copies/labels/print`, body),
 
   // Inter-branch transfers
