@@ -23,6 +23,7 @@ import { copiesApi, COPY_STATUSES, type Copy, type CopyInput, type CopyStatus, t
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
 import { agentAvailable, blobToHex, listLocalPrinters, printRawToLocalName } from '@/lib/library/print-agent';
+import { getLabelPrintPrefs, setLabelPrintPrefs } from '@/lib/library/label-print-prefs';
 
 // Thermal label-roll templates: "rows" = labels side-by-side across the roll's width (lanes).
 // Sizes/gaps are engineering estimates fit within a ≤80mm thermal roll (e.g. Xprinter XP-330B)
@@ -65,24 +66,31 @@ function CopiesContent() {
   const [scanOpen, setScanOpen] = useState(false);
   const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
   const [bulkSheet, setBulkSheet] = useState<'l7160' | '5160'>('l7160');
-  const [bulkFormat, setBulkFormat] = useState<LabelFormat>('avery_a4');
-  const [bulkTemplate, setBulkTemplate] = useState<LabelTemplateName>('1row_62x29');
-  const [bulkRotate, setBulkRotate] = useState(false);
-  const [customW, setCustomW] = useState(62 / 25.4);
-  const [customH, setCustomH] = useState(29 / 25.4);
-  const [customLanes, setCustomLanes] = useState(1);
-  const [customGapX, setCustomGapX] = useState(0.08);
-  const [customGapY, setCustomGapY] = useState(0.08);
+  // Seeded from the last-saved label-print prefs (see lib/library/label-print-prefs.ts) so this
+  // dialog AND the per-row quick-print button (printLabel, above) share one resolved template —
+  // otherwise a template fixed here for the bulk job wouldn't apply to the per-row button.
+  const initialLabelPrefs = useState(() => getLabelPrintPrefs())[0];
+  const [bulkFormat, setBulkFormat] = useState<LabelFormat>(initialLabelPrefs.format ?? 'avery_a4');
+  const [bulkTemplate, setBulkTemplate] = useState<LabelTemplateName>(initialLabelPrefs.template ?? '1row_62x29');
+  const [bulkRotate, setBulkRotate] = useState(initialLabelPrefs.rotate ?? false);
+  const [customW, setCustomW] = useState(initialLabelPrefs.custom_label_w_in ?? 62 / 25.4);
+  const [customH, setCustomH] = useState(initialLabelPrefs.custom_label_h_in ?? 29 / 25.4);
+  const [customLanes, setCustomLanes] = useState(initialLabelPrefs.custom_lanes ?? 1);
+  const [customGapX, setCustomGapX] = useState(initialLabelPrefs.custom_gap_x_in ?? 0.08);
+  const [customGapY, setCustomGapY] = useState(initialLabelPrefs.custom_gap_y_in ?? 0.08);
 
   // Direct USB printing via the local print-agent (see lib/library/print-agent.ts) — reuses the
   // same loopback agent pos-ui/inventory-ui talk to, no separate install needed if it's running.
   const [agentUp, setAgentUp] = useState(false);
   const [localPrinters, setLocalPrinters] = useState<string[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState('');
+  const [selectedPrinter, setSelectedPrinter] = useState(initialLabelPrefs.printerName ?? '');
   const [agentPrinting, setAgentPrinting] = useState(false);
 
+  // Detect the agent whenever thermal is the active format — NOT gated on the bulk dialog being
+  // open, so the per-row quick-print button also has a fresh agentUp/selectedPrinter without
+  // requiring the user to open the bulk dialog first.
   useEffect(() => {
-    if (!bulkPrintOpen || bulkFormat !== 'thermal_tspl') return;
+    if (bulkFormat !== 'thermal_tspl') return;
     let cancelled = false;
     (async () => {
       const up = await agentAvailable();
@@ -97,7 +105,17 @@ function CopiesContent() {
       }
     })();
     return () => { cancelled = true; };
-  }, [bulkPrintOpen, bulkFormat]);
+  }, [bulkFormat]);
+
+  // Persist every choice so the per-row quick-print button and future sessions reuse it.
+  useEffect(() => {
+    setLabelPrintPrefs({
+      format: bulkFormat, template: bulkTemplate, rotate: bulkRotate,
+      custom_label_w_in: customW, custom_label_h_in: customH, custom_lanes: customLanes,
+      custom_gap_x_in: customGapX, custom_gap_y_in: customGapY,
+      printerName: selectedPrinter,
+    });
+  }, [bulkFormat, bulkTemplate, bulkRotate, customW, customH, customLanes, customGapX, customGapY, selectedPrinter]);
 
   const { data: bib } = useBib(orgSlug, bibId);
   const { data: bibCopies = [], isLoading: bibLoading } = useBibCopies(orgSlug, bibId);
@@ -147,17 +165,13 @@ function CopiesContent() {
     }
   }
 
-  function printLabel(copy: Copy) {
-    void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id), {
-      fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
-    });
-  }
-
-  function bulkPrintBody() {
+  // Shared by both the bulk dialog and the per-row quick-print button below, so a single copy's
+  // "print" icon never diverges from whatever template/rotate/format the bulk job was fixed to
+  // use — that divergence (the row button calling labelPdf() bare, with no template/rotate at
+  // all) was the bug: the bulk path could be printing correctly while the row button still
+  // silently defaulted to an un-rotated 62x29mm template regardless.
+  function labelPrintOpts() {
     return {
-      status: statusFilter || undefined,
-      branch_id: branchFilter || undefined,
-      sheet: bulkSheet,
       format: bulkFormat,
       ...(bulkFormat === 'thermal_tspl'
         ? {
@@ -175,6 +189,52 @@ function CopiesContent() {
           }
         : {}),
     };
+  }
+
+  function bulkPrintBody() {
+    return {
+      status: statusFilter || undefined,
+      branch_id: branchFilter || undefined,
+      sheet: bulkSheet,
+      ...labelPrintOpts(),
+    };
+  }
+
+  /** Quick single-copy print — reuses the SAME format/template/rotate/printer as the bulk
+   *  dialog (see labelPrintOpts). format=thermal_tspl isn't a previewable PDF: sends straight to
+   *  the remembered printer via the local print-agent when reachable, else downloads. */
+  function printLabel(copy: Copy) {
+    const opts = labelPrintOpts();
+    if (opts.format !== 'thermal_tspl') {
+      void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id, opts), {
+        fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
+      });
+      return;
+    }
+    void (async () => {
+      try {
+        const blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
+        if (agentUp && selectedPrinter) {
+          const hex = await blobToHex(blob);
+          const ok = await printRawToLocalName(selectedPrinter, hex);
+          if (ok) {
+            toast.success(`Sent to ${selectedPrinter}`);
+            return;
+          }
+          toast.error('Local print agent rejected the job — downloading instead');
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `label-${copy.barcode}.tspl`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        toast.error(await apiErrorMessage(e, 'Failed to generate label'));
+      }
+    })();
   }
 
   function handleBulkPrint() {
