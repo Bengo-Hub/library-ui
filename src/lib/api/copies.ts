@@ -38,6 +38,12 @@ export interface Copy {
 // — see library-api/docs/barcode-labels.md). format defaults to "avery_a4" server-side when
 // omitted, so old callers with no opinion keep getting the pre-existing Avery-sheet PDF.
 export type LabelFormat = 'avery_a4' | 'thermal_tspl';
+// Internal-only pseudo-format for copiesApi.printLabels — NOT a user-facing choice (see the
+// Format radio in copies/page.tsx, which only offers LabelFormat above). Renders a PDF matching
+// EXACTLY what thermal_tspl would print (same template, per-label pages, rotation) instead of
+// printer command bytes, so the bulk dialog can always preview the actual thermal layout before
+// dispatching anything to the printer — see docs/barcode-labels.md.
+export type BulkPrintFormat = LabelFormat | 'thermal_preview';
 export type LabelTemplateName = '1row_29x62' | '2row_35x29' | '3row_23x29' | '4row_17x29' | 'custom';
 
 export interface LabelPrintOpts {
@@ -92,14 +98,16 @@ export const copiesApi = {
   /** Direct link to the spine/barcode label PDF (carries auth via the apiClient blob fetch). */
   labelUrl: (orgSlug: string, id: string) => `${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`,
 
-  // format/template/rotate select thermal-native TSPL output (see labelUrl's own docs) instead
-  // of the default Avery-sheet-shaped PDF — see library-api/docs/barcode-labels.md.
-  labelPdf: (orgSlug: string, id: string, opts?: LabelPrintOpts) =>
+  // format/template/rotate select thermal-native TSPL output, or a PDF preview of the exact same
+  // thermal layout (format=thermal_preview) instead of the default Avery-sheet-shaped PDF — see
+  // library-api/docs/barcode-labels.md.
+  labelPdf: (orgSlug: string, id: string, opts?: Omit<LabelPrintOpts, 'format'> & { format?: BulkPrintFormat }) =>
     apiClient.getBlob(`${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`, opts),
 
-  /** Bulk print: renders an Avery-sheet PDF (format=avery_a4, default) or raw TSPL text
+  /** Bulk print: renders an Avery-sheet PDF (format=avery_a4, default), a PDF preview matching
+   *  the actual thermal layout (format=thermal_preview), or raw TSPL text for the printer
    *  (format=thermal_tspl) of holding labels for many copies at once. */
-  printLabels: (orgSlug: string, body: { copy_ids?: string[]; bib_id?: string; branch_id?: string; status?: string; sheet?: string } & LabelPrintOpts) =>
+  printLabels: (orgSlug: string, body: { copy_ids?: string[]; bib_id?: string; branch_id?: string; status?: string; sheet?: string } & Omit<LabelPrintOpts, 'format'> & { format?: BulkPrintFormat }) =>
     apiClient.postBlob(`${libBase(orgSlug)}/catalog/copies/labels/print`, body),
 
   // Inter-branch transfers

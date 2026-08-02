@@ -20,7 +20,13 @@ export function getLabelPrintPrefs(): LabelPrintPrefs {
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return DEFAULT_PREFS;
-    return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+    // `rotate` is deliberately NEVER carried forward from a previous session/page-load, even
+    // though it's persisted alongside the other prefs (so it stays in sync within one active
+    // session between the bulk dialog and the per-row quick-print button, per this file's own
+    // doc comment). A rotate=true left over from an earlier test would otherwise silently flip
+    // every future print without the operator re-ticking the checkbox — rotation must always be
+    // an explicit, current-session choice, never a remembered default.
+    return { ...DEFAULT_PREFS, ...JSON.parse(raw), rotate: false };
   } catch {
     return DEFAULT_PREFS;
   }

@@ -200,70 +200,57 @@ function CopiesContent() {
     };
   }
 
-  /** Attempts direct-USB thermal printing via the local agent when a printer is remembered, and
-   *  ALWAYS falls back to opening a normal browser-printable PDF (avery_a4) when no printer is
-   *  configured or the agent rejects/can't be reached — a raw .tspl text download is not
-   *  something an end user can act on by itself, so it must never be the only outcome (this was
-   *  the reported gap: "no fallback browser printing if printer is not detected"). The agent
-   *  attempt is made directly regardless of the earlier agentUp probe (see printRawToLocalName's
-   *  doc comment) since that probe can occasionally disagree with a live attempt. */
-  async function printThermalOrFallbackToPdf(opts: {
-    fetchTspl: () => Promise<Blob>;
-    fetchPdf: () => Promise<Blob>;
-    pdfFileName: string;
-    pdfTitle: string;
-  }) {
-    if (selectedPrinter) {
-      try {
-        const blob = await opts.fetchTspl();
-        const hex = await blobToHex(blob);
-        const ok = await printRawToLocalName(selectedPrinter, hex);
-        if (ok) {
-          toast.success(`Sent to ${selectedPrinter}`);
-          return;
-        }
-      } catch {
-        // fall through to the PDF fallback below
-      }
-      toast.error('Could not reach the local print agent — opening a printable PDF instead');
-    } else {
-      toast('No printer configured for direct USB printing — opening a printable PDF instead. Set one in Settings > Printing.');
-    }
-    void openPreview(opts.fetchPdf, { fileName: opts.pdfFileName, title: opts.pdfTitle, orientation: 'portrait' });
-  }
-
   /** Quick single-copy print — reuses the SAME format/template/rotate/printer as the bulk
-   *  dialog (see labelPrintOpts). format=avery_a4 previews the PDF directly; format=thermal_tspl
-   *  goes through printThermalOrFallbackToPdf (agent print, or a printable PDF fallback). */
+   *  dialog (see labelPrintOpts). ALWAYS opens a preview matching the resolved template BEFORE
+   *  anything reaches the printer — format=avery_a4 previews that PDF directly; format=
+   *  thermal_tspl previews via format=thermal_preview (a PDF rendered from the EXACT same
+   *  template/rotation as the real TSPL job, not the unrelated Avery grid, which was the bug:
+   *  labels quietly fell back to an Avery-sheet PDF — a different physical format entirely — and
+   *  got printed in columns on a single-lane thermal roll). If a printer is remembered, also
+   *  offers a one-click "Send to printer" action from the resulting toast. */
   function printLabel(copy: Copy) {
     const opts = labelPrintOpts();
-    if (opts.format !== 'thermal_tspl') {
-      void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id, opts), {
-        fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
-      });
-      return;
-    }
-    void printThermalOrFallbackToPdf({
-      fetchTspl: () => copiesApi.labelPdf(orgSlug, copy.id, opts),
-      fetchPdf: () => copiesApi.labelPdf(orgSlug, copy.id, { format: 'avery_a4' }),
-      pdfFileName: `label-${copy.barcode}.pdf`,
-      pdfTitle: 'Spine / barcode label',
+    const isThermal = opts.format === 'thermal_tspl';
+    const previewOpts = isThermal ? { ...opts, format: 'thermal_preview' as const } : opts;
+    void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id, previewOpts), {
+      fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
     });
+    if (isThermal && selectedPrinter) {
+      toast('Preview opened', {
+        description: `Send directly to ${selectedPrinter} via USB?`,
+        action: {
+          label: 'Send to printer',
+          onClick: () => void sendLabelToAgent(copy, opts),
+        },
+      });
+    }
   }
 
-  function handleBulkPrint() {
-    setBulkPrintOpen(false);
-    if (bulkFormat === 'thermal_tspl') {
-      void printThermalOrFallbackToPdf({
-        fetchTspl: () => copiesApi.printLabels(orgSlug, bulkPrintBody()),
-        fetchPdf: () => copiesApi.printLabels(orgSlug, { status: statusFilter || undefined, branch_id: branchFilter || undefined, sheet: bulkSheet, format: 'avery_a4' }),
-        pdfFileName: 'copy-labels.pdf',
-        pdfTitle: 'Bulk copy labels',
-      });
+  async function sendLabelToAgent(copy: Copy, opts: ReturnType<typeof labelPrintOpts>) {
+    if (!selectedPrinter) {
+      toast.error('Pick a printer first');
       return;
     }
+    try {
+      const blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
+      const hex = await blobToHex(blob);
+      const ok = await printRawToLocalName(selectedPrinter, hex);
+      if (ok) toast.success(`Sent to ${selectedPrinter}`);
+      else toast.error('Local print agent rejected the job');
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to print via local agent'));
+    }
+  }
+
+  /** Bulk "Print"/preview — ALWAYS opens a preview matching the resolved template BEFORE
+   *  anything reaches the printer, same reasoning as printLabel above. Direct USB dispatch is a
+   *  separate, explicit action (see printBulkViaAgent / the "Print via Local Agent" button). */
+  function handleBulkPrint() {
+    setBulkPrintOpen(false);
+    const body = bulkPrintBody();
+    const previewBody = bulkFormat === 'thermal_tspl' ? { ...body, format: 'thermal_preview' as const } : body;
     void openPreview(
-      () => copiesApi.printLabels(orgSlug, bulkPrintBody()),
+      () => copiesApi.printLabels(orgSlug, previewBody),
       { fileName: 'copy-labels.pdf', title: 'Bulk copy labels', orientation: 'portrait' },
     );
   }
@@ -465,7 +452,7 @@ function CopiesContent() {
             <>
               <Button variant="outline" onClick={() => setBulkPrintOpen(false)}>Cancel</Button>
               <Button onClick={handleBulkPrint}>
-                {bulkFormat === 'avery_a4' ? 'Print sheet' : 'Print'}
+                {bulkFormat === 'avery_a4' ? 'Print sheet' : 'Preview'}
               </Button>
             </>
           }
