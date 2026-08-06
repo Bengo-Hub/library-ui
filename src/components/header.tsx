@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSubscription } from '@/hooks/use-subscription';
 import { pinApi } from '@/lib/api/pin';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
@@ -61,12 +62,17 @@ export function Header({ onMenuClick }: HeaderProps) {
   const name = displayName(user);
   const role = user?.roles?.[0];
 
-  // No RBAC/subscription gating today (matches prior behavior); activeServiceTags omitted (fails open).
+  // No RBAC gating today (matches prior behavior); canManageLinks always true. activeProducts is
+  // undefined while the subscription lookup is in flight/unknown — fails open (shows everything)
+  // until it resolves, matching this codebase's existing "never block the UI on a
+  // subscription-fetch failure" convention.
+  const { activeProducts } = useSubscription();
   const services = useVisibleServices({
     orgSlug,
     urls: SERVICE_URLS,
     canManageLinks: true,
     include: LIBRARY_SERVICE_KEYS,
+    activeServiceTags: activeProducts,
   });
 
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
