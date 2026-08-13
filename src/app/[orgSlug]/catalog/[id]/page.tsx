@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, BookMarked, BookText, FileDown, Pencil, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookMarked, BookText, FileDown, Pencil, Printer, Sparkles, Trash2 } from 'lucide-react';
+import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { useBib, useDeleteBib, useRecommendations } from '@/hooks/useCatalog';
 import { useBibCopies } from '@/hooks/useCopies';
 import { catalogApi } from '@/lib/api/catalog';
@@ -21,6 +22,9 @@ import { formatDate } from '@/lib/format';
 import { languageName } from '@/lib/languages';
 import { MemberPicker } from '@/components/library/MemberPicker';
 import { Can } from '@/components/auth/Can';
+import { agentAvailable, listLocalPrinters } from '@/lib/library/print-agent';
+import { getLabelPrintPrefs, toLabelPrintOpts } from '@/lib/library/label-print-prefs';
+import { printCopyLabel } from '@/lib/library/print-label';
 
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   available: 'success', on_loan: 'warning', on_hold: 'warning', in_transit: 'default',
@@ -41,6 +45,32 @@ export default function BibDetailPage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
+
+  // Direct USB label printing via the local print-agent (see lib/library/print-agent.ts) — same
+  // detect-once pattern as the Copies page, so the print button here doesn't require visiting
+  // Copies/Settings first. printLabel prefers a silent direct send and only falls back to the
+  // preview window when no agent/printer is available or the send fails (lib/library/print-label.ts).
+  const [agentUp, setAgentUp] = useState(false);
+  const [selectedPrinter, setSelectedPrinter] = useState(() => getLabelPrintPrefs().printerName ?? '');
+  const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const up = await agentAvailable();
+      if (cancelled) return;
+      setAgentUp(up);
+      if (up) {
+        const printers = await listLocalPrinters();
+        if (!cancelled) setSelectedPrinter((prev) => prev || printers[0] || '');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function printLabel(copy: Copy) {
+    void printCopyLabel(copy, toLabelPrintOpts(getLabelPrintPrefs()), { orgSlug, agentUp, selectedPrinter, openPreview });
+  }
 
   async function handleDelete() {
     try {
@@ -114,6 +144,14 @@ export default function BibDetailPage() {
       key: 'due', header: 'Due',
       accessor: (c) => c.due_date ?? '',
       render: (c) => <span className="text-muted-foreground">{c.due_date ? formatDate(c.due_date) : '—'}</span>,
+    },
+    {
+      key: 'actions', header: '', align: 'right', exportable: false, mobileAction: true,
+      render: (c) => (
+        <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
+        </div>
+      ),
     },
   ];
 
@@ -256,6 +294,8 @@ export default function BibDetailPage() {
         onSelect={handlePlaceHold}
         onCancel={() => setHoldOpen(false)}
       />
+
+      <PdfPreview {...previewProps} />
     </div>
   );
 }

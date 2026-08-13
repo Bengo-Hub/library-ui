@@ -24,6 +24,7 @@ import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
 import { agentAvailable, blobToHex, listLocalPrinters, printRawToLocalName } from '@/lib/library/print-agent';
 import { getLabelPrintPrefs, setLabelPrintPrefs } from '@/lib/library/label-print-prefs';
+import { printCopyLabel } from '@/lib/library/print-label';
 
 // Thermal label-roll templates: "rows" = labels side-by-side across the roll's width (lanes).
 // Sizes/gaps are engineering estimates fit within a ≤80mm thermal roll (e.g. Xprinter XP-330B)
@@ -201,45 +202,13 @@ function CopiesContent() {
   }
 
   /** Quick single-copy print — reuses the SAME format/template/rotate/printer as the bulk
-   *  dialog (see labelPrintOpts). ALWAYS opens a preview matching the resolved template BEFORE
-   *  anything reaches the printer — format=avery_a4 previews that PDF directly; format=
-   *  thermal_tspl previews via format=thermal_preview (a PDF rendered from the EXACT same
-   *  template/rotation as the real TSPL job, not the unrelated Avery grid, which was the bug:
-   *  labels quietly fell back to an Avery-sheet PDF — a different physical format entirely — and
-   *  got printed in columns on a single-lane thermal roll). If a printer is remembered, also
-   *  offers a one-click "Send to printer" action from the resulting toast. */
+   *  dialog (see labelPrintOpts). Prefers a silent direct-USB send via the local print-agent
+   *  when one's detected and a printer is picked; only falls back to the browser/PDF preview
+   *  (format=avery_a4 directly, or format=thermal_preview — a PDF rendered from the EXACT same
+   *  template/rotation as the real TSPL job, not the unrelated Avery grid) when no agent/printer
+   *  is available or the direct send fails. See lib/library/print-label.ts. */
   function printLabel(copy: Copy) {
-    const opts = labelPrintOpts();
-    const isThermal = opts.format === 'thermal_tspl';
-    const previewOpts = isThermal ? { ...opts, format: 'thermal_preview' as const } : opts;
-    void openPreview(() => copiesApi.labelPdf(orgSlug, copy.id, previewOpts), {
-      fileName: `label-${copy.barcode}.pdf`, title: 'Spine / barcode label', orientation: 'landscape',
-    });
-    if (isThermal && selectedPrinter) {
-      toast('Preview opened', {
-        description: `Send directly to ${selectedPrinter} via USB?`,
-        action: {
-          label: 'Send to printer',
-          onClick: () => void sendLabelToAgent(copy, opts),
-        },
-      });
-    }
-  }
-
-  async function sendLabelToAgent(copy: Copy, opts: ReturnType<typeof labelPrintOpts>) {
-    if (!selectedPrinter) {
-      toast.error('Pick a printer first');
-      return;
-    }
-    try {
-      const blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
-      const hex = await blobToHex(blob);
-      const ok = await printRawToLocalName(selectedPrinter, hex);
-      if (ok) toast.success(`Sent to ${selectedPrinter}`);
-      else toast.error('Local print agent rejected the job');
-    } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to print via local agent'));
-    }
+    void printCopyLabel(copy, labelPrintOpts(), { orgSlug, agentUp, selectedPrinter, openPreview });
   }
 
   /** Bulk "Print"/preview — ALWAYS opens a preview matching the resolved template BEFORE
