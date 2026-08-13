@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Printer, RefreshCw, Usb } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, Printer, RefreshCw, Usb } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { Select } from '@/components/ui/form';
-import { getAgentInfo, listLocalPrinters } from '@/lib/library/print-agent';
+import { AGENT_BASE, getAgentInfo, listLocalPrinters } from '@/lib/library/print-agent';
 import { getLabelPrintPrefs, setLabelPrintPrefs } from '@/lib/library/label-print-prefs';
 
 // pos-service hosts the print-agent installer + its download redirect (public, no auth — a plain
@@ -83,14 +83,42 @@ export default function PrintingSettingsPage() {
           It&apos;s shared platform-wide: if it&apos;s already installed/running for POS on this
           machine, it works here too with no separate install.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <a href={AGENT_DOWNLOAD_URL} className="inline-flex">
             <Button variant="outline" className="gap-1.5"><Download className="h-4 w-4" /> Download print agent</Button>
           </a>
           <Button variant="outline" className="gap-1.5" onClick={detect} disabled={detecting}>
             <RefreshCw className={`h-4 w-4 ${detecting ? 'animate-spin' : ''}`} /> {detecting ? 'Checking…' : 'Refresh status'}
           </Button>
+          <a
+            href={`${AGENT_BASE}/health`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Open agent directly (diagnostic)
+          </a>
         </div>
+        {!reachable && (
+          <div className="text-xs text-muted-foreground bg-accent/30 rounded-lg px-3 py-2 space-y-1.5">
+            <p>
+              <span className="font-medium text-foreground">Agent installed and running, but still says &quot;Agent not detected&quot;?</span>{' '}
+              Click &quot;Open agent directly&quot; above — if that opens a page of JSON text (e.g.{' '}
+              <code className="text-[11px]">{'{"ok":true,...}'}</code>), the agent is fine and your{' '}
+              <span className="font-medium text-foreground">browser is blocking this site&apos;s access to your local network</span>{' '}
+              (Chrome/Edge &quot;Local network&quot; permission). Fix: click the padlock/info icon in the
+              address bar → Site settings (or &quot;Permissions for this site&quot;) → set{' '}
+              <span className="font-medium text-foreground">Local network</span> to Allow → reload this
+              page → Refresh status. This is a one-time, per-browser step.
+            </p>
+            <p>
+              If &quot;Open agent directly&quot; does <span className="font-medium text-foreground">not</span> load
+              (times out / connection refused), the agent itself isn&apos;t running on this machine —
+              reinstall it above, or check the &quot;Codevertex POS Print Agent&quot; Windows service is
+              started (services.msc).
+            </p>
+          </div>
+        )}
       </Card>
 
       <Card className="p-5 space-y-3">
