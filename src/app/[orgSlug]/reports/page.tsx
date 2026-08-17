@@ -200,6 +200,7 @@ export default function ReportsPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Total Titles" value={catalogStats.total_titles.toLocaleString()} icon={<BookOpen className="h-5 w-5" />} />
               <StatCard label="Total Copies" value={catalogStats.total_copies.toLocaleString()} icon={<Layers className="h-5 w-5" />} />
+              <StatCard label="Collection Value" value={formatMoney(catalogStats.total_value)} icon={<CircleDollarSign className="h-5 w-5" />} accent="bg-emerald-500/15 text-emerald-500" />
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -237,6 +238,38 @@ export default function ReportsPage() {
                     <li key={r.key} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">{r.key}</span>
                       <span className="font-medium">{r.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </div>
+
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-2"><CircleDollarSign className="h-4 w-4" /> Collection Valuation</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {catalogStats?.value_by_branch && catalogStats.value_by_branch.length > 0 && (
+              <Card className="p-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Value by Branch</h3>
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={catalogStats.value_by_branch} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatMoney(v)} stroke="hsl(var(--muted-foreground))" />
+                      <YAxis type="category" dataKey="key" width={110} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                      <Tooltip formatter={(v) => formatMoney(Number(v))} contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="hsl(var(--primary))" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            )}
+            {catalogStats?.value_by_copy_status && catalogStats.value_by_copy_status.length > 0 && (
+              <Card className="p-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-3">Value by Copy Status</h3>
+                <ul className="space-y-2">
+                  {catalogStats.value_by_copy_status.map((r) => (
+                    <li key={r.key} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{r.key}</span>
+                      <span className="font-medium">{formatMoney(r.value)}</span>
                     </li>
                   ))}
                 </ul>

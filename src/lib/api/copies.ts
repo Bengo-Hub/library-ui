@@ -142,6 +142,9 @@ export interface StockCount {
   expected_count: number;
   scanned_count: number;
   missing_count: number;
+  expected_value: number;
+  scanned_value: number;
+  missing_value: number;
   completed_at?: string | null;
   created_at?: string;
 }
@@ -155,8 +158,10 @@ export const stocktakeApi = {
   },
   start: (orgSlug: string, data: { branch_id: string; reference?: string }) =>
     apiClient.post<StockCount>(`${libBase(orgSlug)}/catalog/stocktake`, data),
-  scan: (orgSlug: string, id: string, barcode: string) =>
-    apiClient.post<{ stocktake: StockCount; copy: Copy }>(`${libBase(orgSlug)}/catalog/stocktake/${id}/scan`, { barcode }),
+  // amount, when provided, updates the scanned copy's acquisition cost (e.g. filling in a value
+  // that was never recorded, or correcting one found while physically counting the shelf).
+  scan: (orgSlug: string, id: string, barcode: string, amount?: number) =>
+    apiClient.post<{ stocktake: StockCount; copy: Copy }>(`${libBase(orgSlug)}/catalog/stocktake/${id}/scan`, { barcode, amount }),
   finalize: (orgSlug: string, id: string) =>
     apiClient.post<{ stocktake: StockCount; missing: number }>(`${libBase(orgSlug)}/catalog/stocktake/${id}/finalize`, {}),
 };

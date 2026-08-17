@@ -56,7 +56,7 @@ export default function DashboardPage() {
             ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
         <StatCard
           label="Outstanding Fines"
           value={formatMoney(summary?.outstanding_fines)}
@@ -76,6 +76,13 @@ export default function DashboardPage() {
           icon={<BookMarked className="h-5 w-5" />}
           accent="bg-amber-500/15 text-amber-500"
           sub={<Link href={`/${orgSlug}/holds`} className="text-primary hover:underline">Manage holds</Link>}
+        />
+        <StatCard
+          label="Collection Value"
+          value={formatMoney(summary?.collection_value)}
+          icon={<CircleDollarSign className="h-5 w-5" />}
+          accent="bg-emerald-500/15 text-emerald-500"
+          sub={<Link href={`/${orgSlug}/reports`} className="text-primary hover:underline">View valuation report</Link>}
         />
       </div>
 

@@ -11,6 +11,7 @@ import { Button, Badge, Card } from '@/components/ui/base';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ScannerInput } from '@/components/library/ScannerInput';
 import { apiErrorMessage } from '@/lib/api/error-message';
+import { formatMoney } from '@/lib/format';
 import type { StockCount } from '@/lib/api/copies';
 
 export default function StocktakePage() {
@@ -26,6 +27,8 @@ export default function StocktakePage() {
   const [active, setActive] = useState<StockCount | null>(null);
   const [toFinalize, setToFinalize] = useState<StockCount | null>(null);
   const [lastScan, setLastScan] = useState<string>('');
+  const [lastScanPrice, setLastScanPrice] = useState<number | null | undefined>(undefined);
+  const [amount, setAmount] = useState('');
 
   const counting = (sessions as StockCount[]).filter((s) => s.status === 'COUNTING');
 
@@ -40,10 +43,13 @@ export default function StocktakePage() {
 
   async function handleScan(barcode: string) {
     if (!active) return;
+    const parsedAmount = amount.trim() === '' ? undefined : Number(amount);
     try {
-      const res = await scan.mutateAsync({ id: active.id, barcode });
+      const res = await scan.mutateAsync({ id: active.id, barcode, amount: parsedAmount });
       setActive(res.stocktake);
       setLastScan(barcode);
+      setLastScanPrice(res.copy.price);
+      setAmount('');
     } catch (e) { toast.error(await apiErrorMessage(e, 'Scan rejected')); }
   }
 
@@ -73,13 +79,40 @@ export default function StocktakePage() {
               </div>
               <Button variant="outline" className="gap-1.5" onClick={() => setToFinalize(active)}><CheckCircle2 className="h-4 w-4" /> Finalize</Button>
             </div>
-            <ScannerInput onScan={handleScan} loading={scan.isPending} placeholder="Scan copy barcode…" />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1">
+                <ScannerInput onScan={handleScan} loading={scan.isPending} placeholder="Scan copy barcode…" />
+              </div>
+              <div className="sm:w-44">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Amount (optional)"
+                  aria-label="Amount to record for the next scanned copy"
+                  className="w-full h-full bg-card border border-border rounded-2xl px-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/60"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">Enter an amount before scanning to record or correct that copy&apos;s value.</p>
             <div className="grid grid-cols-3 gap-3">
               <StatCard label="Expected" value={active.expected_count} />
               <StatCard label="Scanned" value={active.scanned_count} />
               <StatCard label="Outstanding" value={Math.max(0, active.expected_count - active.scanned_count)} />
             </div>
-            {lastScan && <p className="text-xs text-muted-foreground">Last scanned: <span className="font-mono">{lastScan}</span></p>}
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard label="Expected Value" value={formatMoney(active.expected_value)} />
+              <StatCard label="Scanned Value" value={formatMoney(active.scanned_value)} />
+            </div>
+            {lastScan && (
+              <p className="text-xs text-muted-foreground">
+                Last scanned: <span className="font-mono">{lastScan}</span>
+                {lastScanPrice != null && <> · {formatMoney(lastScanPrice)}</>}
+              </p>
+            )}
           </div>
         </Card>
       ) : (
@@ -113,7 +146,9 @@ export default function StocktakePage() {
                   <p className="text-xs text-muted-foreground">{s.scanned_count}/{s.expected_count} scanned{s.status === 'COMPLETED' ? ` · ${s.missing_count} missing` : ''}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {s.status === 'COMPLETED' && s.missing_count > 0 && <Badge variant="error" className="gap-1"><AlertTriangle className="h-3 w-3" />{s.missing_count} missing</Badge>}
+                  {s.status === 'COMPLETED' && s.missing_count > 0 && (
+                    <Badge variant="error" className="gap-1"><AlertTriangle className="h-3 w-3" />{s.missing_count} missing ({formatMoney(s.missing_value)})</Badge>
+                  )}
                   <Badge variant={s.status === 'COMPLETED' ? 'success' : s.status === 'COUNTING' ? 'warning' : 'outline'}>{s.status}</Badge>
                   {s.status === 'COUNTING' && active?.id !== s.id && <Button size="sm" variant="outline" onClick={() => setActive(s)}>Resume</Button>}
                   {s.status === 'COUNTING' && <Button size="sm" variant="outline" onClick={() => setToFinalize(s)}>Finalize</Button>}

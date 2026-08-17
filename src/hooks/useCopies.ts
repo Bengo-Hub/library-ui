@@ -92,8 +92,13 @@ export function useStartStocktake(orgSlug: string) {
 export function useScanStocktake(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, barcode }: { id: string; barcode: string }) => stocktakeApi.scan(orgSlug, id, barcode),
-    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'stocktake', orgSlug] }),
+    mutationFn: ({ id, barcode, amount }: { id: string; barcode: string; amount?: number }) =>
+      stocktakeApi.scan(orgSlug, id, barcode, amount),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [KEY, 'stocktake', orgSlug] });
+      // A scan may have updated the copy's acquisition cost — keep the copies list/detail views in sync.
+      qc.invalidateQueries({ queryKey: [KEY] });
+    },
   });
 }
 

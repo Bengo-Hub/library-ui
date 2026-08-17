@@ -11,6 +11,7 @@ export interface LibrarySummary {
   total_titles: number;
   total_copies: number;
   available_copies: number;
+  collection_value: number;
   outstanding_fines: number;
   checkouts_today?: number;
   returns_today?: number;
@@ -56,6 +57,9 @@ export interface CatalogStatsReport {
   by_format: { key: string; count: number }[];
   by_language: { key: string; count: number }[];
   by_copy_status: { key: string; count: number }[];
+  total_value: number;
+  value_by_copy_status: { key: string; value: number }[];
+  value_by_branch: { key: string; value: number }[];
 }
 
 export interface EbookUsageReport {
