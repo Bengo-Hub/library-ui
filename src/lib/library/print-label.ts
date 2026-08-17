@@ -29,17 +29,33 @@ export async function printCopyLabel(copy: Copy, opts: Omit<LabelPrintOpts, 'for
   const isThermal = opts.format === 'thermal_tspl';
 
   if (isThermal && agentUp && selectedPrinter) {
+    // Split the backend blob fetch from the agent relay call — they fail for completely different
+    // reasons (library-api rejecting the request vs. the local agent/printer rejecting the job).
+    // Previously both were wrapped in one try/catch, so ANY failure was reported as "the local
+    // print agent" even when the actual problem was the server never producing valid TSPL bytes —
+    // that misattribution is what made "agent failures" hard to diagnose from a bug report alone.
+    // printRawToLocalName now also logs the agent's real rejection reason to the console (see
+    // lib/library/print-agent.ts), so a genuine agent-side rejection is no longer silent either.
+    let blob: Blob | undefined;
     try {
-      const blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
-      const hex = await blobToHex(blob);
-      const ok = await printRawToLocalName(selectedPrinter, hex);
-      if (ok) {
-        toast.success(`Sent to ${selectedPrinter}`);
-        return;
+      blob = await copiesApi.labelPdf(orgSlug, copy.id, opts);
+    } catch (e) {
+      console.warn('printCopyLabel: label generation failed', e);
+      toast.error('Failed to generate the label — opening preview instead');
+    }
+    if (blob) {
+      try {
+        const hex = await blobToHex(blob);
+        const ok = await printRawToLocalName(selectedPrinter, hex);
+        if (ok) {
+          toast.success(`Sent to ${selectedPrinter}`);
+          return;
+        }
+        toast.error('Local print agent rejected the job — opening preview instead (see console for the reason)');
+      } catch (e) {
+        console.warn('printCopyLabel: agent relay failed', e);
+        toast.error('Failed to reach the local print agent — opening preview instead');
       }
-      toast.error('Local print agent rejected the job — opening preview instead');
-    } catch {
-      toast.error('Failed to reach the local print agent — opening preview instead');
     }
   }
 
