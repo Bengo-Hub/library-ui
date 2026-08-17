@@ -62,7 +62,10 @@ export default function BibDetailPage() {
       setAgentUp(up);
       if (up) {
         const printers = await listLocalPrinters();
-        if (!cancelled) setSelectedPrinter((prev) => prev || printers[0] || '');
+        if (!cancelled) {
+          const xprinter = printers.find((p) => /xprinter/i.test(p));
+          setSelectedPrinter((prev) => prev || xprinter || printers[0] || '');
+        }
       }
     })();
     return () => { cancelled = true; };

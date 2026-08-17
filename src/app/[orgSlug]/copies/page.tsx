@@ -101,7 +101,11 @@ function CopiesContent() {
         const printers = await listLocalPrinters();
         if (!cancelled) {
           setLocalPrinters(printers);
-          setSelectedPrinter((prev) => prev || printers[0] || '');
+          // Prefer the Xprinter by name when the OS has more than one installed printer (e.g. a
+          // shared office printer alongside the label roll) — falls back to the first entry when
+          // no name matches, same as before.
+          const xprinter = printers.find((p) => /xprinter/i.test(p));
+          setSelectedPrinter((prev) => prev || xprinter || printers[0] || '');
         }
       }
     })();

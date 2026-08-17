@@ -13,7 +13,13 @@ export interface LabelPrintPrefs extends LabelPrintOpts {
   printerName?: string;
 }
 
-const DEFAULT_PREFS: LabelPrintPrefs = { format: 'avery_a4' };
+// This library's only physical label printer is the Xprinter XP-330B (thermal TSPL) — every other
+// default on the Copies page (template '1row_29x62', 29x62mm custom dims) already assumes it. A
+// browser/terminal that has never opened the bulk "Print labels" dialog to save a preference must
+// default here too, otherwise the per-row quick-print button's isThermal/agentUp/selectedPrinter
+// checks (see copies/page.tsx + print-label.ts) never engage and it silently falls back to the
+// browser PDF preview/print window on every machine except the one that once made this choice.
+const DEFAULT_PREFS: LabelPrintPrefs = { format: 'thermal_tspl' };
 
 export function getLabelPrintPrefs(): LabelPrintPrefs {
   if (typeof window === 'undefined') return DEFAULT_PREFS;
