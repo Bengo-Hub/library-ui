@@ -7,7 +7,14 @@ import type { LabelPrintOpts } from '@/lib/api/copies';
  * template instead of a hardcoded default (see inventory-ui's identical
  * lib/inventory/label-print-prefs.ts for the sibling implementation and the bug this fixes).
  */
-const KEY = 'library.labelPrintPrefs.v1';
+// v2 (not v1): bumped so every browser that persisted the OLD 'avery_a4' default before this fix
+// shipped (which is EVERY browser that ever loaded the Copies page even once, since the persist
+// effect writes on mount regardless of whether the operator changed anything) starts fresh on the
+// new DEFAULT_PREFS below instead of being permanently stuck on the stale value. Confirmed live: a
+// real MCCL-tenant terminal was still sending format=avery_a4 well after the DEFAULT_PREFS fix
+// deployed, because its v1 localStorage entry (written who-knows-when, pre-dating this fix) took
+// precedence over the new default every time. Do NOT bump this again for unrelated changes.
+const KEY = 'library.labelPrintPrefs.v2';
 
 export interface LabelPrintPrefs extends LabelPrintOpts {
   printerName?: string;
