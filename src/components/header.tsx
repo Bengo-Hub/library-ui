@@ -2,35 +2,26 @@
 
 import { useAuthStore } from '@/store/auth';
 import { useState } from 'react';
-import { Bell, BookOpen, ChevronDown, CreditCard, ExternalLink, LogOut, Menu, Search, Settings, ShoppingCart, User } from 'lucide-react';
+import { Bell, ChevronDown, CreditCard, Menu, Search, Settings, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from './theme-toggle';
 import { useBranding } from '@/providers/branding-provider';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useSubscription } from '@/hooks/use-subscription';
 import { pinApi } from '@/lib/api/pin';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
-import { useVisibleServices, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
+import { useVisibleServices, AppSwitcherGrid, AppSwitcherTrigger, type ServiceKey } from '@bengo-hub/shared-ui-lib/app-switcher';
+import { AccountPanel } from '@bengo-hub/shared-ui-lib/account-panel';
 import { BranchFilter } from './branch-filter';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 
-// library-ui links to only a curated subset of the shared registry (librarians don't need
-// Logistics/CRM/ERP shortcuts) via `include` — POS and Treasury stay local since library-ui was
-// already linking to them before the shared registry existed and neither is in scope to
-// generalize this session.
-const POS_URL = process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com';
-const TREASURY_URL = process.env.NEXT_PUBLIC_TREASURY_UI_URL ?? 'https://books.codevertexafrica.com';
-const LIBRARY_SERVICE_KEYS: ServiceKey[] = [
-  'subscriptions',
-  'auth',
-  'projects',
-  'afya',
-  'sourcing',
-  'traceability',
-  'ticketing',
-];
 const SERVICE_URLS: Partial<Record<ServiceKey, string>> = {
+  pos: process.env.NEXT_PUBLIC_POS_UI_URL ?? 'https://pos.codevertexafrica.com',
+  treasury: process.env.NEXT_PUBLIC_TREASURY_UI_URL ?? 'https://books.codevertexafrica.com',
+  inventory: process.env.NEXT_PUBLIC_INVENTORY_UI_URL ?? 'https://inventory.codevertexafrica.com',
+  marketflow: process.env.NEXT_PUBLIC_MARKETFLOW_UI_URL ?? 'https://marketflow.codevertexafrica.com',
+  erp: process.env.NEXT_PUBLIC_ERP_UI_URL ?? 'https://erp.codevertexafrica.com',
+  ordering: process.env.NEXT_PUBLIC_ORDERING_UI_URL ?? 'https://ordering.codevertexafrica.com',
   subscriptions: process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL ?? 'https://pricing.codevertexafrica.com',
   auth: process.env.NEXT_PUBLIC_AUTH_UI_URL ?? 'https://accounts.codevertexafrica.com',
   projects: process.env.NEXT_PUBLIC_PROJECTS_UI_URL ?? 'https://projects.codevertexafrica.com',
@@ -62,18 +53,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   const name = displayName(user);
   const role = user?.roles?.[0];
 
-  // No RBAC gating today (matches prior behavior); canManageLinks always true. activeProducts is
-  // undefined while the subscription lookup is in flight/unknown — fails open (shows everything)
-  // until it resolves, matching this codebase's existing "never block the UI on a
-  // subscription-fetch failure" convention.
-  const { activeProducts } = useSubscription();
-  const services = useVisibleServices({
-    orgSlug,
-    urls: SERVICE_URLS,
-    canManageLinks: true,
-    include: LIBRARY_SERVICE_KEYS,
-    activeServiceTags: activeProducts,
-  });
+  // The App Store shows every real service to every authenticated user in the tenant — each
+  // destination service already enforces its own RBAC + subscription gating on arrival, so
+  // pre-filtering the directory here just hid apps that were actually reachable.
+  const services = useVisibleServices({ orgSlug, urls: SERVICE_URLS, canManageLinks: true });
 
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
   function downloadMyCard() {
@@ -135,6 +118,8 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <ThemeToggle />
 
+        {isAuthenticated && <AppSwitcherTrigger services={services} />}
+
         <div className="h-8 w-[1px] bg-border mx-1 hidden sm:block" />
 
         {isAuthenticated && (
@@ -157,125 +142,38 @@ export function Header({ onMenuClick }: HeaderProps) {
               <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-300 ${profileOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {profileOpen && (
-              <>
-                <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setProfileOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-[1.5rem] p-3 shadow-2xl border border-border bg-popover overflow-hidden">
-                  <div className="mb-2 px-3 py-2">
-                    <p className="text-sm font-black text-foreground">{name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate font-bold uppercase tracking-widest mt-0.5">{role || 'Librarian'}</p>
-                  </div>
-
-                  <div className="h-px bg-border my-2 mx-1" />
-                  <button
-                    type="button"
-                    onClick={downloadMyCard}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
+            <AccountPanel
+              open={profileOpen}
+              onClose={() => setProfileOpen(false)}
+              user={{ name, email: user?.email ?? '' }}
+              onSignOut={() => {
+                setProfileOpen(false);
+                void logout();
+              }}
+            >
+              <div className="flex flex-col gap-3">
+                <p className="text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {role || 'Librarian'}
+                </p>
+                <button
+                  type="button"
+                  onClick={downloadMyCard}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary"
+                >
+                  <CreditCard className="h-4 w-4" /> My staff card
+                </button>
+                {can('library.settings.manage') && (
+                  <Link
+                    href={`/${orgSlug}/settings`}
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                      <CreditCard className="h-4 w-4" />
-                    </div>
-                    My staff card
-                  </button>
-
-                  {can('library.settings.manage') && (
-                    <>
-                      <div className="h-px bg-border my-2 mx-1" />
-                      <div className="grid gap-1">
-                        <Link
-                          href={`/${orgSlug}/settings`}
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                            <Settings className="h-4 w-4" />
-                          </div>
-                          Settings
-                        </Link>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="h-px bg-border my-2 mx-1" />
-
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-3 mb-1.5">Services</p>
-                  <div className="grid gap-1">
-                    <a
-                      href={`${POS_URL}/${orgSlug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                        <ShoppingCart className="h-4 w-4" />
-                      </div>
-                      <span className="flex-1">POS</span>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
-                    </a>
-                    <a
-                      href={`${TREASURY_URL}/${orgSlug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                        <BookOpen className="h-4 w-4" />
-                      </div>
-                      <span className="flex-1">Treasury</span>
-                      <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
-                    </a>
-                    {services.map(({ key, label, href, Icon }) =>
-                      href ? (
-                        <a
-                          key={key}
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-foreground/70 hover:bg-accent hover:text-foreground transition-all group"
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:text-primary transition-colors">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <span className="flex-1">{label}</span>
-                          <ExternalLink className="h-3 w-3 text-muted-foreground opacity-60" />
-                        </a>
-                      ) : (
-                        <div
-                          key={key}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-muted-foreground/50 cursor-default"
-                          title={`${label} — coming soon`}
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <span className="flex-1">{label}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wider bg-accent px-1.5 py-0.5 rounded-full">Soon</span>
-                        </div>
-                      ),
-                    )}
-                  </div>
-
-                  <div className="h-px bg-border my-2 mx-1" />
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileOpen(false);
-                      void logout();
-                    }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-500/10 transition-all group"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center transition-colors">
-                      <LogOut className="h-4 w-4" />
-                    </div>
-                    Logout
-                  </button>
-                </div>
-              </>
-            )}
+                    <Settings className="h-4 w-4" /> Settings
+                  </Link>
+                )}
+                <AppSwitcherGrid services={services} onNavigate={() => setProfileOpen(false)} />
+              </div>
+            </AccountPanel>
           </div>
         )}
       </div>
