@@ -4,9 +4,9 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookCopy, Plus, Printer, Pencil, Trash2, ArrowLeft, Search, ScanLine, Layers, Usb } from 'lucide-react';
+import { BookCopy, Plus, Printer, Pencil, Trash2, XOctagon, ArrowLeft, Search, ScanLine, Layers, Usb } from 'lucide-react';
 import { useBib } from '@/hooks/useCatalog';
-import { useBibCopies, useCopies, useCreateCopy, useUpdateCopy, useDeleteCopy } from '@/hooks/useCopies';
+import { useBibCopies, useCopies, useCreateCopy, useUpdateCopy, useDeleteCopy, useHardDeleteCopy } from '@/hooks/useCopies';
 import { useBranches } from '@/hooks/useBranches';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
@@ -136,10 +136,12 @@ function CopiesContent() {
   const createCopy = useCreateCopy(orgSlug);
   const updateCopy = useUpdateCopy(orgSlug);
   const deleteCopy = useDeleteCopy(orgSlug);
+  const hardDeleteCopy = useHardDeleteCopy(orgSlug);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Copy | undefined>();
   const [toWithdraw, setToWithdraw] = useState<Copy | null>(null);
+  const [toHardDelete, setToHardDelete] = useState<Copy | null>(null);
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
 
   async function handleSubmit(data: CopyInput) {
@@ -167,6 +169,18 @@ function CopiesContent() {
       toast.error(await apiErrorMessage(e, 'Failed to withdraw copy'));
     } finally {
       setToWithdraw(null);
+    }
+  }
+
+  async function handleHardDelete() {
+    if (!toHardDelete) return;
+    try {
+      await hardDeleteCopy.mutateAsync(toHardDelete.id);
+      toast.success('Copy permanently deleted');
+    } catch (e) {
+      toast.error(await apiErrorMessage(e, 'Failed to permanently delete copy'));
+    } finally {
+      setToHardDelete(null);
     }
   }
 
@@ -293,6 +307,11 @@ function CopiesContent() {
             <Can perm="library.copies.delete">
               <Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             </Can>
+            {(c.status === 'withdrawn' || c.status === 'lost') && (
+              <Can perm="library.copies.hard_delete">
+                <Button variant="ghost" size="icon" title="Permanently delete" onClick={() => setToHardDelete(c)}><XOctagon className="h-4 w-4 text-destructive" /></Button>
+              </Can>
+            )}
           </div>
         ),
       },
@@ -403,6 +422,16 @@ function CopiesContent() {
           confirmLabel="Withdraw copy"
           onConfirm={handleWithdraw}
           onCancel={() => setToWithdraw(null)}
+        />
+
+        <ConfirmDialog
+          open={!!toHardDelete}
+          title="Permanently delete this copy?"
+          description={`Copy ${toHardDelete?.barcode} will be permanently removed from the database. This cannot be undone and there is no recovery from the app.`}
+          variant="danger"
+          confirmLabel="Permanently delete"
+          onConfirm={handleHardDelete}
+          onCancel={() => setToHardDelete(null)}
         />
 
         <PdfPreview {...previewProps} />
@@ -577,6 +606,11 @@ function CopiesContent() {
           <Button variant="ghost" size="icon" title="Print spine / barcode label" onClick={() => printLabel(c)}><Printer className="h-4 w-4" /></Button>
           <Can perm="library.copies.change"><Button variant="ghost" size="icon" title="Edit" onClick={() => { setEditing(c); setDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button></Can>
           <Can perm="library.copies.delete"><Button variant="ghost" size="icon" title="Withdraw" onClick={() => setToWithdraw(c)}><Trash2 className="h-4 w-4 text-destructive" /></Button></Can>
+          {(c.status === 'withdrawn' || c.status === 'lost') && (
+            <Can perm="library.copies.hard_delete">
+              <Button variant="ghost" size="icon" title="Permanently delete" onClick={() => setToHardDelete(c)}><XOctagon className="h-4 w-4 text-destructive" /></Button>
+            </Can>
+          )}
         </div>
       ),
     },
@@ -625,6 +659,16 @@ function CopiesContent() {
         confirmLabel="Withdraw copy"
         onConfirm={handleWithdraw}
         onCancel={() => setToWithdraw(null)}
+      />
+
+      <ConfirmDialog
+        open={!!toHardDelete}
+        title="Permanently delete this copy?"
+        description={`Copy ${toHardDelete?.barcode} will be permanently removed from the database. This cannot be undone and there is no recovery from the app.`}
+        variant="danger"
+        confirmLabel="Permanently delete"
+        onConfirm={handleHardDelete}
+        onCancel={() => setToHardDelete(null)}
       />
 
       <PdfPreview {...previewProps} />

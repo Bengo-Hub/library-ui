@@ -95,6 +95,11 @@ export const copiesApi = {
   delete: (orgSlug: string, id: string) =>
     apiClient.delete<void>(`${libBase(orgSlug)}/catalog/copies/${id}`),
 
+  /** Permanent delete (admin-only). Copy must already be withdrawn/lost with no loan, hold,
+   *  or transfer history — the backend enforces this and returns 409 otherwise. */
+  hardDelete: (orgSlug: string, id: string) =>
+    apiClient.delete<void>(`${libBase(orgSlug)}/catalog/copies/${id}/hard`),
+
   /** Direct link to the spine/barcode label PDF (carries auth via the apiClient blob fetch). */
   labelUrl: (orgSlug: string, id: string) => `${libBase(orgSlug)}/catalog/copies/${id}/label.pdf`,
 

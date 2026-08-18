@@ -49,6 +49,14 @@ export function useDeleteCopy(orgSlug: string) {
   });
 }
 
+export function useHardDeleteCopy(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => copiesApi.hardDelete(orgSlug, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
 export function useTransfers(orgSlug: string, status?: string) {
   return useQuery({
     queryKey: [KEY, 'transfers', orgSlug, status],
