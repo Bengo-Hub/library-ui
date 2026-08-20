@@ -144,6 +144,7 @@ export default function HoldsPage() {
         rows={holds}
         rowKey={(h) => h.id}
         loading={isLoading}
+        loadingRows={8}
         emptyState={<EmptyState icon={<BookMarked className="h-12 w-12" />} title="No holds" description="There are no reservations matching this filter." />}
       />
 

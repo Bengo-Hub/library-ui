@@ -272,6 +272,7 @@ export default function SubscriptionDetailPage() {
           rows={filteredIssues}
           rowKey={(i) => i.id}
           loading={issuesLoading}
+          loadingRows={8}
         />
       </div>
 

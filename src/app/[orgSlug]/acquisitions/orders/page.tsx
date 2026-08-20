@@ -130,6 +130,7 @@ export default function OrdersPage() {
             rows={orders}
             rowKey={(o) => o.id}
             loading={isLoading}
+            loadingRows={8}
             storageKey="library-po"
             showExportCsv
             exportFileName="purchase-orders"

@@ -130,6 +130,7 @@ export default function InvoicesPage() {
             rows={invoices}
             rowKey={(inv) => inv.id}
             loading={isLoading}
+            loadingRows={8}
             storageKey="library-acq-invoices"
             showExportCsv
             exportFileName="acquisition-invoices"

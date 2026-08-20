@@ -252,6 +252,7 @@ function CatalogContent() {
         rows={bibs}
         rowKey={(bib) => bib.id}
         loading={isLoading}
+        loadingRows={8}
         onRowClick={(bib) => router.push(`/${orgSlug}/catalog/${bib.id}`)}
         emptyState={
           <EmptyState

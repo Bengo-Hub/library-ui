@@ -253,6 +253,7 @@ export default function BibDetailPage() {
         rows={copies}
         rowKey={(c) => c.id}
         loading={copiesLoading}
+        loadingRows={8}
         emptyState={
           <div className="text-center text-sm text-muted-foreground">
             No copies attached.{' '}

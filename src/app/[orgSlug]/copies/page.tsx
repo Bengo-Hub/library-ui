@@ -377,6 +377,7 @@ function CopiesContent() {
           rows={allCopies}
           rowKey={(c) => c.id}
           loading={allLoading}
+          loadingRows={8}
           emptyState={
             <EmptyState
               icon={<BookCopy className="h-12 w-12" />}
@@ -633,6 +634,7 @@ function CopiesContent() {
         rows={copies}
         rowKey={(c) => c.id}
         loading={isLoading}
+        loadingRows={8}
         emptyState={<EmptyState
           icon={<BookCopy className="h-12 w-12" />}
           title="No copies yet"

@@ -187,6 +187,7 @@ export default function MembersPage() {
         rows={members}
         rowKey={(m) => m.id}
         loading={isLoading}
+        loadingRows={8}
         emptyState={<EmptyState icon={<Users className="h-12 w-12" />} title="No members" description={debouncedQ ? 'No members matched your search.' : 'Add your first member.'} action={<Button className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> New Member</Button>} />}
         storageKey="library-members"
         showExportCsv

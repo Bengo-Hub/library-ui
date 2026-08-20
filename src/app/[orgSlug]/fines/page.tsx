@@ -134,6 +134,7 @@ export default function FinesPage() {
         rows={fines}
         rowKey={(f) => f.id}
         loading={isLoading}
+        loadingRows={8}
         emptyState={<EmptyState icon={<CircleDollarSign className="h-12 w-12" />} title="No fines" description="There are no fines matching this filter." />}
         storageKey="library-fines"
         showExportCsv
