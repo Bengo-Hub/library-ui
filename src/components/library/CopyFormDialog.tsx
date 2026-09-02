@@ -16,6 +16,23 @@ import { COPY_STATUSES, type Copy, type CopyInput, type CopyStatus } from '@/lib
 const FIELD = 'w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Cataloging a real shipment/batch of books happens over several real data-entry days, but every
+// copy in that batch usually shares ONE true acquisition date — always defaulting to "today" forced
+// staff to remember to hand-edit this field every single time or every copy silently got stamped
+// with whatever day it happened to be keyed in. Instead, remember the last date a staff member
+// deliberately set on an Add (not Edit) and default new Add-Copy dialogs to that, per tenant.
+function lastAcquisitionDateKey(orgSlug: string): string {
+  return `library:copies:lastAcquisitionDate:${orgSlug}`;
+}
+function getLastAcquisitionDate(orgSlug: string): string {
+  if (typeof window === 'undefined') return '';
+  try { return localStorage.getItem(lastAcquisitionDateKey(orgSlug)) ?? ''; } catch { return ''; }
+}
+function setLastAcquisitionDate(orgSlug: string, date: string): void {
+  if (typeof window === 'undefined' || !date) return;
+  try { localStorage.setItem(lastAcquisitionDateKey(orgSlug), date); } catch { /* storage disabled */ }
+}
+
 export function CopyFormDialog({
   open, orgSlug, bibId, initial, saving, onSubmit, onClose,
 }: {
@@ -53,9 +70,12 @@ export function CopyFormDialog({
         acquisition_date: initial.acquisition_date, price: initial.price ?? undefined, condition: initial.condition, notes: initial.notes,
       });
     } else {
-      setForm({ bib_record_id: bibId, status: 'available', branch_id: defaultBranchId || undefined, acquisition_date: todayISO() });
+      setForm({
+        bib_record_id: bibId, status: 'available', branch_id: defaultBranchId || undefined,
+        acquisition_date: getLastAcquisitionDate(orgSlug) || todayISO(),
+      });
     }
-  }, [initial, bibId, open, defaultBranchId]);
+  }, [initial, bibId, open, defaultBranchId, orgSlug]);
 
   function set<K extends keyof CopyInput>(key: K, value: CopyInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -63,6 +83,7 @@ export function CopyFormDialog({
 
   function handleSubmit() {
     if (!form.barcode?.trim()) { toast.error('A copy barcode is required'); return; }
+    if (!initial) setLastAcquisitionDate(orgSlug, form.acquisition_date ?? '');
     onSubmit(form);
   }
 
@@ -124,7 +145,7 @@ export function CopyFormDialog({
           <Field label="Call number" hint="Spine/shelf locator (e.g. 823.914 OGO)">
             <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} className={FIELD} />
           </Field>
-          <Field label="Acquisition date">
+          <Field label="Acquisition date" hint="Defaults to the last date you used — set it once per batch/shipment for accurate audit records; it doesn't have to be today.">
             <input type="date" value={form.acquisition_date ?? ''} onChange={(e) => set('acquisition_date', e.target.value)} className={FIELD} />
           </Field>
           <Field label="Price">

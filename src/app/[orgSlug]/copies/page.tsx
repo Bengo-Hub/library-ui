@@ -4,19 +4,20 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookCopy, Plus, Printer, Pencil, Trash2, XOctagon, ArrowLeft, Search, ScanLine, Layers, Usb } from 'lucide-react';
+import { BookCopy, Plus, Printer, Pencil, Trash2, XOctagon, ArrowLeft, Layers, Usb, X, CalendarClock } from 'lucide-react';
 import { useBib } from '@/hooks/useCatalog';
 import { useBibCopies, useCopies, useCreateCopy, useUpdateCopy, useDeleteCopy, useHardDeleteCopy } from '@/hooks/useCopies';
 import { useBranches } from '@/hooks/useBranches';
+import { usePermissions } from '@/hooks/usePermissions';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
-import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
+import { DataTable, type DataTableColumn, type BulkAction } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
-import { Select } from '@/components/ui/form';
+import { Select, Field } from '@/components/ui/form';
 import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Can } from '@/components/auth/Can';
-import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { ScannerInput } from '@/components/library/ScannerInput';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput, type CopyStatus, type LabelFormat, type LabelTemplateName } from '@/lib/api/copies';
@@ -64,7 +65,6 @@ function CopiesContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
-  const [scanOpen, setScanOpen] = useState(false);
   const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
   const [bulkSheet, setBulkSheet] = useState<'l7160' | '5160'>('l7160');
   // Seeded from the last-saved label-print prefs (see lib/library/label-print-prefs.ts) so this
@@ -143,6 +143,48 @@ function CopiesContent() {
   const [toWithdraw, setToWithdraw] = useState<Copy | null>(null);
   const [toHardDelete, setToHardDelete] = useState<Copy | null>(null);
   const { openPreview, previewProps } = useDocumentPreview({ onError: (m: string) => toast.error(m) });
+  const { can } = usePermissions();
+  const canChangeCopy = can('library.copies.change');
+
+  // Bulk "set acquisition date" — corrects a batch of copies that were mis-dated (see
+  // lib.pos-sale-session-style acquisition-date fixes: ReceiveLine + CopyFormDialog's sticky
+  // default) without needing a per-copy edit. Client-side loop over the existing single-copy
+  // update endpoint — no new backend route needed for this small, occasional cleanup action.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDateOpen, setBulkDateOpen] = useState(false);
+  const [bulkDate, setBulkDate] = useState('');
+  const [bulkDateSaving, setBulkDateSaving] = useState(false);
+
+  async function applyBulkDate() {
+    if (!bulkDate) { toast.error('Pick a date first'); return; }
+    const ids = Array.from(selected);
+    setBulkDateSaving(true);
+    let okCount = 0;
+    for (const id of ids) {
+      try {
+        await updateCopy.mutateAsync({ id, data: { acquisition_date: bulkDate } });
+        okCount++;
+      } catch { /* counted via ids.length - okCount below */ }
+    }
+    setBulkDateSaving(false);
+    setBulkDateOpen(false);
+    setSelected(new Set());
+    if (okCount === ids.length) toast.success(`Acquisition date set on ${okCount} cop${okCount === 1 ? 'y' : 'ies'}`);
+    else toast.warning(`${okCount} of ${ids.length} copies updated — some failed`);
+  }
+
+  const copyBulkActions: BulkAction[] = canChangeCopy
+    ? [{
+        key: 'set-acquisition-date', label: 'Set acquisition date', icon: <CalendarClock className="h-4 w-4" />,
+        onClick: () => { setBulkDate(getLastAcquisitionDateFallback()); setBulkDateOpen(true); },
+      }]
+    : [];
+
+  function getLastAcquisitionDateFallback(): string {
+    if (typeof window === 'undefined') return new Date().toISOString().slice(0, 10);
+    try { return localStorage.getItem(`library:copies:lastAcquisitionDate:${orgSlug}`) ?? new Date().toISOString().slice(0, 10); }
+    catch { return new Date().toISOString().slice(0, 10); }
+  }
 
   async function handleSubmit(data: CopyInput) {
     try {
@@ -341,24 +383,24 @@ function CopiesContent() {
           onChange={(v) => { setStatusFilter(v as CopyStatus | ''); setPage(1); }}
         />
 
-        <div className="flex gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-48">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <input
-              value={searchQ}
-              onChange={(e) => { setSearchQ(e.target.value); setPage(1); }}
-              placeholder="Search accession/barcode number or title…"
-              className="w-full rounded-lg border border-input bg-transparent pl-8 pr-9 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+        {/* ScannerInput autofocuses and keeps refocusing so a USB handheld scanner "just works"
+            without clicking into the box first (a plain <input> here previously went nowhere unless
+            already focused). Enter (typed or the scanner's trailing Enter) submits; camera fallback
+            built in. */}
+        <div className="flex gap-2 flex-wrap items-start">
+          <div className="flex-1 min-w-48 flex flex-col gap-2">
+            <ScannerInput
+              onScan={(value) => { setSearchQ(value); setPage(1); }}
+              placeholder="Search accession/barcode number or title, or scan…"
             />
-            <button
-              type="button"
-              onClick={() => setScanOpen(true)}
-              title="Scan accession/barcode number"
-              aria-label="Scan accession/barcode number"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <ScanLine className="h-3.5 w-3.5" />
-            </button>
+            {searchQ && (
+              <Badge variant="outline" className="w-fit gap-1.5">
+                Searching: <span className="font-medium">{searchQ}</span>
+                <button type="button" onClick={() => setSearchQ('')} aria-label="Clear search" className="ml-0.5 hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
           </div>
           {branches.length > 0 && (
             <Select
@@ -391,6 +433,10 @@ function CopiesContent() {
           storageKey="library-copies-holdings"
           showExportCsv
           exportFileName="library-copies"
+          selectable={canChangeCopy}
+          selected={selected}
+          onSelectedChange={setSelected}
+          bulkActions={copyBulkActions}
         />
 
         {totalPages > 1 && (
@@ -415,6 +461,28 @@ function CopiesContent() {
           />
         )}
 
+        <Dialog
+          open={bulkDateOpen}
+          onClose={() => setBulkDateOpen(false)}
+          title="Set acquisition date"
+          description={`Applies one shared audit date to the ${selected.size} selected cop${selected.size === 1 ? 'y' : 'ies'}.`}
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setBulkDateOpen(false)}>Cancel</Button>
+              <Button onClick={applyBulkDate} disabled={bulkDateSaving}>{bulkDateSaving ? 'Applying…' : 'Apply'}</Button>
+            </>
+          }
+        >
+          <Field label="Acquisition date">
+            <input
+              type="date"
+              value={bulkDate}
+              onChange={(e) => setBulkDate(e.target.value)}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+            />
+          </Field>
+        </Dialog>
+
         <ConfirmDialog
           open={!!toWithdraw}
           title="Withdraw this copy?"
@@ -436,15 +504,6 @@ function CopiesContent() {
         />
 
         <PdfPreview {...previewProps} />
-
-        <Dialog open={scanOpen} onClose={() => setScanOpen(false)} title="Scan accession/barcode number">
-          {scanOpen && (
-            <BarcodeScanner
-              hint="Point the camera at the copy's accession/barcode label."
-              onScan={(text) => { setSearchQ(text); setPage(1); setScanOpen(false); }}
-            />
-          )}
-        </Dialog>
 
         <Dialog
           open={bulkPrintOpen}

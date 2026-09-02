@@ -9,14 +9,19 @@ import {
   useOrder, useSubmitOrder, useAddLine, useReceiveLine,
   useVendors,
 } from '@/hooks/useAcquisitions';
+import { useBranches } from '@/hooks/useBranches';
+import { useOutletStore } from '@/store/outlet';
 import { PageHeader, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/form';
+import { Combobox } from '@/components/ui/combobox';
 import { type PurchaseOrderLine, type POLineInput, type ReceiveLineInput, type POStatus } from '@/lib/api/acquisitions';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate, formatMoney } from '@/lib/format';
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const STATUS_VARIANT: Record<POStatus, 'default' | 'success' | 'warning' | 'error' | 'outline'> = {
   DRAFT: 'outline', SUBMITTED: 'default', PARTIAL: 'warning', RECEIVED: 'success', CANCELLED: 'error',
@@ -31,6 +36,8 @@ export default function OrderDetailPage() {
 
   const { data: order, isLoading } = useOrder(orgSlug, orderId);
   const { data: vendorsData } = useVendors(orgSlug);
+  const { data: branchesPage } = useBranches(orgSlug);
+  const currentOutlet = useOutletStore((s) => s.outlet);
   const submitOrder = useSubmitOrder(orgSlug);
   const addLine = useAddLine(orgSlug, orderId);
   const receiveLine = useReceiveLine(orgSlug, orderId);
@@ -40,9 +47,20 @@ export default function OrderDetailPage() {
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [receivingLine, setReceivingLine] = useState<PurchaseOrderLine | null>(null);
   const [receiveQty, setReceiveQty] = useState(1);
+  const [receiveBranchId, setReceiveBranchId] = useState('');
+  const [receiveShelfLoc, setReceiveShelfLoc] = useState('');
+  const [receiveDate, setReceiveDate] = useState('');
 
   const vendors = vendorsData?.data ?? [];
+  const branches = branchesPage?.data ?? [];
   const lines: PurchaseOrderLine[] = (order as any)?.edges?.lines ?? [];
+  // Default branch for a receive: the branch the user is logged in to, else the tenant's default/HQ
+  // branch, else the first branch — same fallback order CopyFormDialog already uses for Add Copy.
+  const defaultReceiveBranchId =
+    currentOutlet?.id
+    || branches.find((b) => (b as { is_default?: boolean }).is_default)?.id
+    || branches[0]?.id
+    || '';
 
   const canEdit = order?.status === 'DRAFT';
   const canSubmit = order?.status === 'DRAFT' && lines.length > 0;
@@ -70,6 +88,11 @@ export default function OrderDetailPage() {
   function openReceive(line: PurchaseOrderLine) {
     setReceivingLine(line);
     setReceiveQty(line.quantity - line.received_qty);
+    setReceiveBranchId(defaultReceiveBranchId);
+    setReceiveShelfLoc('');
+    // Default to the PO's own order date (the shipment's real date) rather than today, so every
+    // copy this receive creates shares one real acquisition date for audit purposes — editable.
+    setReceiveDate(order?.order_date?.slice(0, 10) || todayISO());
     setReceiveOpen(true);
   }
 
@@ -77,8 +100,20 @@ export default function OrderDetailPage() {
     if (!receivingLine) return;
     if (receiveQty < 1) { toast.error('Quantity must be at least 1'); return; }
     try {
-      await receiveLine.mutateAsync({ lineId: receivingLine.id, data: { quantity: receiveQty } });
-      toast.success('Items received');
+      const result = await receiveLine.mutateAsync({
+        lineId: receivingLine.id,
+        data: {
+          received_qty: receiveQty,
+          branch_id: receiveBranchId || undefined,
+          shelf_location: receiveShelfLoc || undefined,
+          received_date: receiveDate || undefined,
+        },
+      });
+      if (result.copies_failed) {
+        toast.warning(`${result.copies_created} of ${receiveQty} copies created — ${result.copies_failed} failed. Check the copy list and retry if needed.`);
+      } else {
+        toast.success(`Received — ${result.copies_created} ${result.copies_created === 1 ? 'copy' : 'copies'} added to the catalog`);
+      }
       setReceiveOpen(false);
     } catch (e) { toast.error(await apiErrorMessage(e, 'Failed to receive items')); }
   }
@@ -240,6 +275,33 @@ export default function OrderDetailPage() {
               max={receivingLine ? receivingLine.quantity - receivingLine.received_qty : 1}
               value={receiveQty}
               onChange={(e) => setReceiveQty(Number(e.target.value))}
+              className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Branch">
+              <Combobox
+                value={receiveBranchId}
+                onChange={(v) => setReceiveBranchId(v || '')}
+                options={branches.map((b) => ({ value: b.id, label: b.name }))}
+                placeholder="— Select —"
+                searchPlaceholder="Search branches…"
+              />
+            </Field>
+            <Field label="Acquisition / received date" hint="One date for this whole batch — for audit purposes.">
+              <input
+                type="date"
+                value={receiveDate}
+                onChange={(e) => setReceiveDate(e.target.value)}
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+              />
+            </Field>
+          </div>
+          <Field label="Shelf location">
+            <input
+              value={receiveShelfLoc}
+              onChange={(e) => setReceiveShelfLoc(e.target.value)}
+              placeholder="e.g. GEN, REF"
               className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
             />
           </Field>

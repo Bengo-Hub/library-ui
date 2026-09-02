@@ -129,8 +129,21 @@ export interface POLineInput {
 }
 
 export interface ReceiveLineInput {
-  quantity: number;
+  // NOTE: field name must match the backend's receiveLineRequest JSON tag exactly (there is no
+  // anti-corruption mapping layer on this endpoint, unlike catalog.ts's toBibPayload/fromBibRecord).
+  // This was previously named `quantity` here while the backend only ever read `received_qty` —
+  // every "Mark Received" call silently 400'd ("received_qty must be > 0"), so no PO was ever
+  // actually receivable through this dialog. Fixed alongside the acquisition-date fix below.
+  received_qty: number;
   branch_id?: string;
+  shelf_location?: string;
+  /** One shared audit date for every copy this receive creates — defaults server-side to the PO's own order_date, else today. */
+  received_date?: string;
+}
+
+export interface ReceiveLineResult extends PurchaseOrderLine {
+  copies_created: number;
+  copies_failed?: number;
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
@@ -227,7 +240,7 @@ export const acquisitionsApi = {
   addLine: (orgSlug: string, orderId: string, data: POLineInput) =>
     apiClient.post<PurchaseOrderLine>(`${libBase(orgSlug)}/acquisitions/orders/${orderId}/lines`, data),
   receiveLine: (orgSlug: string, orderId: string, lineId: string, data: ReceiveLineInput) =>
-    apiClient.post<PurchaseOrderLine>(
+    apiClient.post<ReceiveLineResult>(
       `${libBase(orgSlug)}/acquisitions/orders/${orderId}/lines/${lineId}/receive`,
       data
     ),
