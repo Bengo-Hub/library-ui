@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Library, Plus, Search, SlidersHorizontal, ScanLine, Eye, BookText, Pencil, Trash2 } from 'lucide-react';
+import { Library, Plus, SlidersHorizontal, Eye, BookText, Pencil, Trash2, X } from 'lucide-react';
 import { useCatalogSearch, useCatalogFacets, useDeleteBib } from '@/hooks/useCatalog';
 import { useDebounce } from '@/hooks/useDebounce';
 import { BIB_FORMATS, type BibFormat, type BibRecord } from '@/lib/api/catalog';
@@ -12,10 +12,9 @@ import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
 import { DataTable, type DataTableColumn, type BulkAction } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
-import { Dialog } from '@/components/ui/dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AvailabilityBadge } from '@/components/library/AvailabilityBadge';
-import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { ScannerInput } from '@/components/library/ScannerInput';
 import { FeatureLock } from '@bengo-hub/shared-ui-lib/subscription';
 import { useImagePreview, ImagePreview } from '@bengo-hub/shared-ui-lib';
 import { Can } from '@/components/auth/Can';
@@ -36,7 +35,6 @@ function CatalogContent() {
   const [branchId, setBranchId] = useState('');
   const [availableOnly, setAvailableOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const [scanOpen, setScanOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<BibRecord | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -174,37 +172,28 @@ function CatalogContent() {
         }
       />
 
-      {/* Search + format filter */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center mb-5">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by title, author, ISBN, subject…"
-            className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-16 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+      {/* Search + format filter — ScannerInput autofocuses and keeps refocusing so a USB handheld
+          scanner "just works" without clicking into the box first (it was previously a plain
+          <input>, so a scan went nowhere unless the box happened to already be focused); Enter
+          (typed or the scanner's own trailing Enter) submits, with a camera fallback built in. */}
+      <div className="flex flex-col gap-2 mb-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <ScannerInput
+            onScan={(value) => setQ(value)}
+            placeholder="Search by title, author, ISBN, subject, or scan a barcode…"
+            className="flex-1"
           />
-          <button
-            type="button"
-            onClick={() => setScanOpen(true)}
-            title="Scan ISBN/barcode to search"
-            aria-label="Scan ISBN/barcode to search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <ScanLine className="h-4 w-4" />
-          </button>
+          {isFetching && <span className="text-xs text-muted-foreground shrink-0">Searching…</span>}
         </div>
-        {isFetching && <span className="text-xs text-muted-foreground">Searching…</span>}
-      </div>
-
-      <Dialog open={scanOpen} onClose={() => setScanOpen(false)} title="Scan ISBN or barcode">
-        {scanOpen && (
-          <BarcodeScanner
-            hint="Point the camera at the ISBN or copy barcode to search the catalog."
-            onScan={(text) => { setQ(text); setScanOpen(false); }}
-          />
+        {q && (
+          <Badge variant="outline" className="w-fit gap-1.5">
+            Searching: <span className="font-medium">{q}</span>
+            <button type="button" onClick={() => setQ('')} aria-label="Clear search" className="ml-0.5 hover:text-destructive">
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
         )}
-      </Dialog>
+      </div>
 
       <CapsuleTabs
         className="mb-3"
