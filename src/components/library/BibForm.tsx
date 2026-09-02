@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ScanLine, Upload, Loader2, X } from 'lucide-react';
+import { ScanLine, Upload, Loader2, X, History } from 'lucide-react';
 import { Button } from '@/components/ui/base';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Dialog } from '@/components/ui/dialog';
@@ -14,6 +14,8 @@ import { CollectionFormDialog } from '@/components/library/CollectionFormDialog'
 import { BIB_FORMATS, type BibInput, type BibRecord, type BibFormat, type LibraryCollection } from '@/lib/api/catalog';
 import { useIsbnLookup, useCollections, useUploadCover } from '@/hooks/useCatalog';
 import { LANGUAGES } from '@/lib/languages';
+import { useAuthStore } from '@/store/auth';
+import { useBibDraft } from '@/hooks/useBibDraft';
 
 export interface BibCovers { front?: File; back?: File }
 
@@ -31,7 +33,7 @@ export function BibForm({
   orgSlug: string;
   initial?: BibRecord;
   saving?: boolean;
-  onSubmit: (data: BibInput, covers?: BibCovers) => void;
+  onSubmit: (data: BibInput, covers?: BibCovers) => void | Promise<void>;
 }) {
   const [form, setForm] = useState<BibInput>(EMPTY);
   const [secondaryIsbn, setSecondaryIsbn] = useState('');
@@ -45,6 +47,37 @@ export function BibForm({
 
   const isbnLookup = useIsbnLookup(orgSlug);
   const { data: collections = [] } = useCollections(orgSlug);
+
+  // Cataloging autosave (create mode only) — see hooks/useBibDraft.ts. Scoped per tenant+user so a
+  // shared terminal never offers one staff member's in-progress title to another.
+  const authUser = useAuthStore((s) => s.user);
+  const draftScopeKey = !initial && authUser?.id && orgSlug ? `${orgSlug}:${authUser.id}:bib:new` : '';
+  const bibDraft = useBibDraft({
+    enabled: !initial,
+    scopeKey: draftScopeKey,
+    snapshot: { ...form, secondaryIsbn },
+    isEmpty: (s) => !s.title?.trim() && !s.isbn?.trim() && !(s.authors && s.authors.length) && !s.publisher?.trim(),
+  });
+
+  function restoreDraft() {
+    const draft = bibDraft.pendingDraft;
+    if (!draft) return;
+    const data = draft.data as Partial<BibInput> & { secondaryIsbn?: string };
+    setForm({ ...EMPTY, ...data });
+    setSecondaryIsbn(data.secondaryIsbn ?? '');
+    if (draft.coverBlob) {
+      const file = new File([draft.coverBlob], 'cover', { type: draft.coverBlob.type || 'image/jpeg' });
+      setCoverFile(file);
+      setCoverPreview(URL.createObjectURL(file));
+    }
+    if (draft.coverBackBlob) {
+      const file = new File([draft.coverBackBlob], 'cover-back', { type: draft.coverBackBlob.type || 'image/jpeg' });
+      setBackFile(file);
+      setBackPreview(URL.createObjectURL(file));
+    }
+    bibDraft.dismissDraft();
+    toast.success('Draft restored');
+  }
 
   useEffect(() => {
     if (initial) {
@@ -109,33 +142,67 @@ export function BibForm({
     if (!file) return;
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
+    bibDraft.setCovers({ cover: file });
   }
   function pickBack(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setBackFile(file);
     setBackPreview(URL.createObjectURL(file));
+    bibDraft.setCovers({ coverBack: file });
   }
 
   function onCollectionSaved(c: LibraryCollection) {
     set('collection_id', c.id);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
     const other = secondaryIsbn.trim() ? [secondaryIsbn.trim()] : [];
-    onSubmit(
-      { ...form, author: undefined, authors: form.authors ?? [], subjects: form.subjects ?? [], other_isbns: other },
-      { front: coverFile ?? undefined, back: backFile ?? undefined },
-    );
+    try {
+      await onSubmit(
+        { ...form, author: undefined, authors: form.authors ?? [], subjects: form.subjects ?? [], other_isbns: other },
+        { front: coverFile ?? undefined, back: backFile ?? undefined },
+      );
+      await bibDraft.clear();
+    } catch {
+      // onSubmit already surfaces its own error toast — keep the draft so a failed save (e.g. a
+      // dropped connection mid-submit) doesn't lose the in-progress title a second way.
+    }
   }
 
   const collectionOptions = collections.map((c) => ({ value: c.id, label: c.name, hint: c.is_global ? undefined : 'custom' }));
   const languageOptions = LANGUAGES.map((l) => ({ value: l.code, label: l.name, hint: l.code }));
 
+  // A USB/handheld barcode scanner behaves as a keyboard wedge: it types the barcode then sends a
+  // trailing Enter. Enter inside any plain <input> in an HTML <form> submits that form by default —
+  // so scanning into e.g. Secondary ISBN would save/close this title before the rest of it was
+  // filled in. Only the ISBN field intentionally wants Enter (to trigger lookup, and already calls
+  // preventDefault() itself). This one guard protects every other field, present and future, without
+  // needing a per-field fix; it doesn't affect Textarea (Enter never submits there) or the
+  // Combobox/TermMultiSelect inputs' own Enter handling (preventDefault only blocks the browser's
+  // native "submit nearest form" action, not event propagation or another handler already invoked).
+  function guardEnterSubmit(e: React.KeyboardEvent<HTMLFormElement>) {
+    if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+      e.preventDefault();
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} onKeyDown={guardEnterSubmit} className="space-y-6">
+      {bibDraft.pendingDraft && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <History className="h-4 w-4 text-primary shrink-0" />
+          <p className="text-sm flex-1">
+            You have an unsaved title from earlier — restore it to continue where you left off?
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={() => bibDraft.discardDraft()}>Discard</Button>
+            <Button type="button" size="sm" onClick={restoreDraft}>Restore</Button>
+          </div>
+        </div>
+      )}
       {/* ISBN scan row */}
       <div className="rounded-2xl border border-border bg-accent/20 p-4">
         <Field label="ISBN" hint="Scan the ISBN to auto-fill title, author, publisher, cover and synopsis — or type it and press Enter. You can always edit or type everything manually.">
@@ -172,9 +239,9 @@ export function BibForm({
         {/* Covers: front + back */}
         <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
           <CoverSlot label="Front cover" preview={coverPreview} title={form.title} onPick={pickFront}
-            onRemove={() => { setCoverFile(null); setCoverPreview(null); set('cover_url', null); }} />
+            onRemove={() => { setCoverFile(null); setCoverPreview(null); set('cover_url', null); bibDraft.setCovers({ cover: null }); }} />
           <CoverSlot label="Back cover" preview={backPreview} title={form.title} onPick={pickBack}
-            onRemove={() => { setBackFile(null); setBackPreview(null); set('cover_back_url', null); }} />
+            onRemove={() => { setBackFile(null); setBackPreview(null); set('cover_back_url', null); bibDraft.setCovers({ coverBack: null }); }} />
         </div>
 
         {/* Fields */}

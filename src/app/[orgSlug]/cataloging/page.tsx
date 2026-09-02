@@ -46,6 +46,9 @@ function CatalogingContent() {
       router.push(`/${orgSlug}/catalog/${bibId}`);
     } catch (e) {
       toast.error(await apiErrorMessage(e, 'Failed to save title'));
+      // Rethrow so BibForm's submit wrapper knows the save failed and keeps the autosave draft
+      // instead of clearing it — a dropped connection mid-submit shouldn't lose the title twice.
+      throw e;
     }
   }
 
