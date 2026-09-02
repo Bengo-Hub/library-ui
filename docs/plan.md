@@ -1,6 +1,6 @@
 # Library UI - Plan
 
-**Last updated:** 2026-06-26
+**Last updated:** 2026-09-02
 **Framework:** Next.js 16 (App Router) + React 19 + TypeScript
 **Styling:** Tailwind CSS 4 + shadcn (on Base UI)
 **Backend:** library-api (`libraryapi.codevertexafrica.com`, port 4010)
@@ -87,6 +87,27 @@ The frontend roadmap is aligned 1:1 to the backend phases.
 | Forms | `react-hook-form` + `zod` | Validation |
 
 ---
+
+## Recent hardening (2026-09-02, client-reported fixes)
+
+See `library-api/docs/plan.md`'s matching section + `.claude/memory/project_library_management.md`
+Session 18 for full detail. UI-side highlights:
+
+- **Cataloging autosave**: `BibForm` (new-title entry) now autosaves to IndexedDB (Dexie,
+  `lib/db/library-db.ts`), mirroring pos-ui's proven `sale-sessions`/`useSaleSessions` "Sale tabs"
+  resume-after-reload pattern — offers to restore an in-progress title (including a picked cover
+  image) after a dropped connection, crash, or accidental navigation.
+- **Scanner-safe forms**: `BibForm` was the only component in the app with a native `<form>` — a
+  keyboard-wedge barcode scanner's trailing Enter could submit/save an incomplete title from any
+  field except the ISBN one. Fixed with one centralized `onKeyDown` guard.
+- **Barcode search**: Catalog OPAC and Copies & Holdings search bars now use the existing
+  `ScannerInput` component (autofocus + Enter-submit + camera fallback) instead of a plain `<input>`
+  that only worked once manually clicked into.
+- **Acquisition date**: `CopyFormDialog`'s date now defaults to the last value a staff member
+  deliberately set (localStorage, per tenant) instead of always resetting to today, so a shipment
+  catalogued across several real days keeps one shared date; a "Set acquisition date" bulk action was
+  added to Copies & Holdings for correcting already-mis-dated copies; the "Mark Received" dialog on a
+  Purchase Order now collects branch/shelf/date instead of silently defaulting them.
 
 ## Constraints
 
