@@ -360,7 +360,7 @@ function CopiesContent() {
     ];
 
     return (
-      <div className="max-w-5xl mx-auto space-y-4">
+      <div className="max-w-7xl mx-auto space-y-4">
         <PageHeader
           title="Copies & Holdings"
           subtitle={`${total} physical cop${total === 1 ? 'y' : 'ies'} across all titles`}
