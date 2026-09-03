@@ -180,7 +180,7 @@ function CatalogContent() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <ScannerInput
             onScan={(value) => setQ(value)}
-            placeholder="Search by title, author, ISBN, subject, or scan a barcode…"
+            placeholder="Search by title, author, ISBN, subject, or scan the ISBN…"
             className="flex-1"
           />
           {isFetching && <span className="text-xs text-muted-foreground shrink-0">Searching…</span>}
