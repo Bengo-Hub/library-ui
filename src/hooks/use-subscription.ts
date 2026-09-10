@@ -49,16 +49,21 @@ export function useSubscription() {
   const lookupRetries = useRef(0);
 
   const tenantSlug = user?.tenant_slug as string | undefined;
-  const roles = (((user as any)?.roles ?? []) as string[]).map((r) => String(r).toLowerCase());
-  const isSuperuser = roles.includes('superuser') || roles.includes('super_admin');
+  // Platform-owner-ness deliberately does NOT include the superuser/admin role — a tenant
+  // superuser is a tenant-level admin and must NOT bypass subscription gating (platform SEC-3
+  // policy: otherwise any tenant admin unlocks paid features for free). `roles` still drives
+  // real RBAC elsewhere, just not this.
   const isPlatformOwner =
     !!(user as any)?.is_platform_owner ||
     !!(user as any)?.isPlatformOwner ||
-    isSuperuser ||
     tenantSlug === 'codevertex';
   const isServiceCharge = (user as any)?.billing_mode === 'service_charge';
   const isDemo = !!(user as any)?.is_demo || tenantSlug === 'codevertex-demo';
-  const isExempt = isPlatformOwner || isDemo || isServiceCharge;
+  // Platform-granted per-tenant exemption (sub_exempt JWT claim) — the /me-derived `user` object
+  // never carries this field, so decode it from the access token (same decodeJwtClaims helper
+  // useSubscriptionEntitlements below already uses).
+  const isSubExempt = decodeJwtClaims(session?.accessToken)?.sub_exempt === true;
+  const isExempt = isPlatformOwner || isDemo || isServiceCharge || isSubExempt;
 
   // Hydrate from IndexedDB on auth so gating works offline
   useEffect(() => {
@@ -228,7 +233,8 @@ export function useSubscriptionEntitlements(): SubscriptionEntitlements {
       tenantSlug === "codevertex";
     const isDemo = tenantClaims.is_demo === true || tenantSlug === "codevertex-demo";
     const isServiceCharge = tenantClaims.billing_mode === "service_charge";
-    const isExempt = isPlatformOwner || isDemo || isServiceCharge;
+    const isSubExempt = tenantClaims.sub_exempt === true;
+    const isExempt = isPlatformOwner || isDemo || isServiceCharge || isSubExempt;
 
     // Features: JWT claim → fetched info → offline store.
     const claimFeatures = tenantClaims.subscription_features;
