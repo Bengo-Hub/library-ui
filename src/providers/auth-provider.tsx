@@ -10,6 +10,10 @@ import { useAuthStore } from '@/store/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+
+const SUBSCRIPTIONS_UI_URL =
+    process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const { status, initialize } = useAuthStore();
@@ -81,6 +85,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (info) useLimitModal.getState().show(info);
         });
         return () => apiClient.setOnLimitReached(null);
+    }, []);
+
+    // Wire 403 subscription/service errors → toast. Previously registered nowhere at all
+    // (setOnSubscription403 existed on apiClient but no caller ever set a handler) — a
+    // subscription_inactive/service_not_subscribed 403 on any API call other than /me silently
+    // went unnoticed. service_not_subscribed (RequireServiceAccess) fires for a tenant whose
+    // plan doesn't include "library" at all (e.g. a PowerSuite-only tenant reaching this app).
+    useEffect(() => {
+        apiClient.setOnSubscription403((data) => {
+            const payload = (data ?? {}) as { code?: string; service_tag?: string; error?: string };
+            const serviceTag = payload.code === 'service_not_subscribed' ? payload.service_tag : undefined;
+            toast.error('Subscription required', {
+                description: payload.error || 'Your plan does not cover this action.',
+                action: {
+                    label: 'Upgrade',
+                    onClick: () =>
+                        window.open(`${SUBSCRIPTIONS_UI_URL}/plans?service=${serviceTag || 'library'}`, '_blank', 'noopener'),
+                },
+            });
+        });
+        return () => apiClient.setOnSubscription403(null);
     }, []);
 
     // Unauthenticated users land on the PIN login page by default (the desk/kiosk default),
