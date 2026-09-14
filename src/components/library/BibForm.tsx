@@ -27,6 +27,24 @@ const EMPTY: BibInput = {
   cover_url: null, cover_back_url: null, publication_place: '', other_isbns: [],
 };
 
+// Cataloging a real shipment/batch of books usually means every title in that batch shares ONE
+// true place of publication (e.g. a delivery of US-published titles) — leaving the field blank
+// every time forced staff to reselect it per title, or worse, an example placeholder ("Nairobi,
+// Kenya") got mistaken for an actual default. Remember the last place a staff member deliberately
+// saved a NEW title with, and default the next new title to that, per tenant — mirrors the
+// acquisition-date stickiness in CopyFormDialog.tsx.
+function lastPlaceKey(orgSlug: string): string {
+  return `library:catalog:lastPlace:${orgSlug}`;
+}
+function getLastPlace(orgSlug: string): string {
+  if (typeof window === 'undefined') return '';
+  try { return localStorage.getItem(lastPlaceKey(orgSlug)) ?? ''; } catch { return ''; }
+}
+function setLastPlace(orgSlug: string, place: string): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(lastPlaceKey(orgSlug), place); } catch { /* storage disabled */ }
+}
+
 const INPUT = 'w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
 
 export function BibForm({
@@ -115,8 +133,15 @@ export function BibForm({
       setSecondaryIsbn((initial.other_isbns ?? [])[0] ?? '');
       setCoverPreview(initial.cover_url ?? null);
       setBackPreview(initial.cover_back_url ?? null);
+    } else {
+      // New title: default Place of publication to the last one a staff member deliberately
+      // saved a title with (see getLastPlace/setLastPlace above), instead of leaving it blank
+      // every time — that's what made cataloging a batch of e.g. US-published titles keep
+      // landing back on an unrelated default.
+      const last = getLastPlace(orgSlug);
+      if (last) setForm((f) => ({ ...f, publication_place: last }));
     }
-  }, [initial]);
+  }, [initial, orgSlug]);
 
   function set<K extends keyof BibInput>(key: K, value: BibInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -194,6 +219,10 @@ export function BibForm({
         { front: coverFile ?? undefined, back: backFile ?? undefined },
         confirmingDuplicate,
       );
+      // Remember this Place of publication for the next NEW title (batch-cataloging stickiness)
+      // — only on create, mirroring CopyFormDialog's acquisition-date behavior; editing an
+      // existing title's place shouldn't change what the next title you ADD defaults to.
+      if (!initial) setLastPlace(orgSlug, form.publication_place ?? '');
       await bibDraft.clear();
     } catch {
       // onSubmit already surfaces its own error toast — keep the draft so a failed save (e.g. a
@@ -312,12 +341,12 @@ export function BibForm({
               addLabel="Add publisher"
             />
           </Field>
-          <Field label="Place of publication">
+          <Field label="Place of publication" hint="Search existing or type to add a new place. Stays as your last choice for the next new title.">
             <TermSelect
               orgSlug={orgSlug} kind="place"
               value={form.publication_place ?? ''}
               onChange={(v) => set('publication_place', v)}
-              placeholder="Nairobi, Kenya"
+              placeholder="Select or add a place…"
               addLabel="Add place"
             />
           </Field>
