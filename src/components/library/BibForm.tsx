@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { ScanLine, Upload, Loader2, X, History } from 'lucide-react';
+import { ScanLine, Upload, Loader2, X, History, AlertTriangle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/base';
 import { Field, Select, Textarea } from '@/components/ui/form';
 import { Dialog } from '@/components/ui/dialog';
@@ -11,8 +12,9 @@ import { TermMultiSelect, TermSelect } from '@/components/ui/term-select';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { CoverThumb } from '@/components/library/CoverThumb';
 import { CollectionFormDialog } from '@/components/library/CollectionFormDialog';
-import { BIB_FORMATS, type BibInput, type BibRecord, type BibFormat, type LibraryCollection } from '@/lib/api/catalog';
-import { useIsbnLookup, useCollections, useUploadCover } from '@/hooks/useCatalog';
+import { BIB_FORMATS, type BibInput, type BibRecord, type BibFormat, type LibraryCollection, type BibDuplicateMatch } from '@/lib/api/catalog';
+import { useIsbnLookup, useCollections, useUploadCover, useCheckDuplicateBib } from '@/hooks/useCatalog';
+import { useDebounce } from '@/hooks/useDebounce';
 import { LANGUAGES } from '@/lib/languages';
 import { useAuthStore } from '@/store/auth';
 import { useBibDraft } from '@/hooks/useBibDraft';
@@ -33,7 +35,7 @@ export function BibForm({
   orgSlug: string;
   initial?: BibRecord;
   saving?: boolean;
-  onSubmit: (data: BibInput, covers?: BibCovers) => void | Promise<void>;
+  onSubmit: (data: BibInput, covers?: BibCovers, force?: boolean) => void | Promise<void>;
 }) {
   const [form, setForm] = useState<BibInput>(EMPTY);
   const [secondaryIsbn, setSecondaryIsbn] = useState('');
@@ -44,9 +46,26 @@ export function BibForm({
   const [backPreview, setBackPreview] = useState<string | null>(null);
   const [collectionDialogOpen, setCollectionDialogOpen] = useState(false);
   const [collectionDefaultName, setCollectionDefaultName] = useState('');
+  // Duplicate-title confirmation is a two-step submit: the first click on a title that already
+  // exists surfaces this flag instead of saving, the second ("Create anyway") click actually
+  // submits with force=true. An ISBN match is never confirmable this way — handleSubmit blocks it
+  // outright (same ISBN means the fix is to add a copy to the existing title, not force a save).
+  const [confirmingDuplicate, setConfirmingDuplicate] = useState(false);
 
   const isbnLookup = useIsbnLookup(orgSlug);
   const { data: collections = [] } = useCollections(orgSlug);
+
+  // Live pre-flight duplicate check, debounced so it doesn't fire on every keystroke — reduces the
+  // "librarian must manually search the catalog first" burden the duplicate-detection gap caused.
+  const debouncedTitle = useDebounce(form.title, 500);
+  const debouncedIsbn = useDebounce(form.isbn, 500);
+  const { data: dupeCheck } = useCheckDuplicateBib(orgSlug, {
+    title: debouncedTitle, isbn: debouncedIsbn, excludeId: initial?.id,
+  });
+  const isbnMatches = dupeCheck?.isbn_matches ?? [];
+  const titleMatches = dupeCheck?.title_matches ?? [];
+
+  useEffect(() => { setConfirmingDuplicate(false); }, [debouncedTitle]);
 
   // Cataloging autosave (create mode only) — see hooks/useBibDraft.ts. Scoped per tenant+user so a
   // shared terminal never offers one staff member's in-progress title to another.
@@ -159,11 +178,21 @@ export function BibForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
+    if (isbnMatches.length > 0) {
+      toast.error('This ISBN is already in your catalog — open the existing title and add a copy instead.');
+      return;
+    }
+    if (titleMatches.length > 0 && !confirmingDuplicate) {
+      // First click on a duplicate-looking title: surface the confirm callout instead of saving.
+      setConfirmingDuplicate(true);
+      return;
+    }
     const other = secondaryIsbn.trim() ? [secondaryIsbn.trim()] : [];
     try {
       await onSubmit(
         { ...form, author: undefined, authors: form.authors ?? [], subjects: form.subjects ?? [], other_isbns: other },
         { front: coverFile ?? undefined, back: backFile ?? undefined },
+        confirmingDuplicate,
       );
       await bibDraft.clear();
     } catch {
@@ -233,6 +262,7 @@ export function BibForm({
             </div>
           </div>
         </Field>
+        {isbnMatches.length > 0 && <DuplicateWarning orgSlug={orgSlug} matches={isbnMatches} variant="blocking" reason="Same ISBN already in your catalog" />}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -249,6 +279,18 @@ export function BibForm({
           <Field label="Title" required className="sm:col-span-2">
             <input value={form.title} onChange={(e) => set('title', e.target.value)} className={INPUT} />
           </Field>
+          {isbnMatches.length === 0 && titleMatches.length > 0 && (
+            <div className="sm:col-span-2">
+              <DuplicateWarning
+                orgSlug={orgSlug}
+                matches={titleMatches}
+                variant="confirmable"
+                reason="A title with this exact name is already in your catalog"
+                confirming={confirmingDuplicate}
+                onCancel={() => setConfirmingDuplicate(false)}
+              />
+            </div>
+          )}
           <Field label="Subtitle" className="sm:col-span-2">
             <input value={form.subtitle ?? ''} onChange={(e) => set('subtitle', e.target.value)} className={INPUT} />
           </Field>
@@ -336,9 +378,14 @@ export function BibForm({
       </div>
 
       <div className="flex justify-end gap-3 border-t border-border pt-4">
-        <Button type="submit" disabled={saving} className="gap-1.5 w-full sm:w-auto">
+        <Button
+          type="submit"
+          disabled={saving || isbnMatches.length > 0}
+          variant={confirmingDuplicate ? 'destructive' : 'primary'}
+          className="gap-1.5 w-full sm:w-auto"
+        >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {initial ? 'Save changes' : 'Create title'}
+          {confirmingDuplicate ? 'Create anyway' : (initial ? 'Save changes' : 'Create title')}
         </Button>
       </div>
 
@@ -354,6 +401,60 @@ export function BibForm({
         onSaved={onCollectionSaved}
       />
     </form>
+  );
+}
+
+/**
+ * Non-blocking (or submit-blocking, per `variant`) possible-duplicate callout shown while
+ * cataloging. `blocking` (ISBN match) has no way past it in this form — the fix is to open the
+ * existing title and add a copy. `confirmable` (title-only match) turns into a stronger "are you
+ * sure" once the librarian has tried to submit once (`confirming`), with a Cancel to back out —
+ * the actual confirm action is the form's own submit button (see handleSubmit / "Create anyway").
+ */
+function DuplicateWarning({ orgSlug, matches, variant, reason, confirming, onCancel }: {
+  orgSlug: string;
+  matches: BibDuplicateMatch[];
+  variant: 'blocking' | 'confirmable';
+  reason: string;
+  confirming?: boolean;
+  onCancel?: () => void;
+}) {
+  const tone = variant === 'blocking' || confirming
+    ? 'border-destructive/40 bg-destructive/5 text-destructive'
+    : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400';
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${tone}`}>
+      <div className="flex items-start gap-2 text-xs font-medium">
+        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+        <span>{reason}. {variant === 'blocking' ? 'Open the title below and add a copy instead of creating a new one.' : 'Double-check it isn’t already catalogued before continuing.'}</span>
+      </div>
+      <ul className="space-y-1.5">
+        {matches.map((m) => (
+          <li key={m.id} className="flex items-center gap-2 rounded-lg bg-background/60 p-1.5">
+            <CoverThumb url={m.cover_url} title={m.title} className="h-10 w-8 shrink-0 rounded" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{m.title}{m.subtitle ? `: ${m.subtitle}` : ''}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {[m.authors?.join(', '), m.isbn].filter(Boolean).join(' · ') || m.format}
+              </p>
+            </div>
+            <Link
+              href={`/${orgSlug}/catalog/${m.id}`}
+              target="_blank"
+              className="flex items-center gap-1 shrink-0 text-xs font-medium text-primary hover:underline"
+            >
+              View <ExternalLink className="h-3 w-3" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {confirming && (
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <p className="text-xs">Sure this is a different work or edition? Use “Create anyway” below, or cancel.</p>
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+        </div>
+      )}
+    </div>
   );
 }
 

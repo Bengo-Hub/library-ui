@@ -68,6 +68,22 @@ export interface BibInput {
   pages?: number | null;
 }
 
+/** A possible-duplicate hit returned by `checkDuplicateBib` / a 409 from create/update. */
+export interface BibDuplicateMatch {
+  id: string;
+  title: string;
+  subtitle?: string;
+  authors?: string[];
+  format: BibFormat;
+  isbn?: string;
+  cover_url?: string;
+}
+
+export interface DuplicateCheckResult {
+  isbn_matches: BibDuplicateMatch[];
+  title_matches: BibDuplicateMatch[];
+}
+
 export interface IsbnLookupResult {
   title?: string;
   subtitle?: string;
@@ -126,9 +142,16 @@ const FORMAT_FROM_API: Record<string, BibFormat> = {
   PHYSICAL: 'book', EBOOK: 'ebook', AUDIOBOOK: 'audiobook', PERIODICAL: 'periodical',
 };
 
+/** Split a raw ISBN string into the backend's isbn13/isbn10 fields (10 digits = ISBN-10). */
+function splitIsbn(isbn?: string): { isbn13?: string; isbn10?: string } {
+  const clean = (isbn ?? '').replace(/[^0-9Xx]/g, '');
+  if (!clean) return {};
+  return clean.length === 10 ? { isbn10: clean } : { isbn13: clean };
+}
+
 /** Map a UI BibInput to the backend's create/update payload shape. */
-function toBibPayload(input: Partial<BibInput>): Record<string, unknown> {
-  const isbnClean = (input.isbn ?? '').replace(/[^0-9Xx]/g, '');
+function toBibPayload(input: Partial<BibInput>, opts?: { force?: boolean }): Record<string, unknown> {
+  const { isbn13, isbn10 } = splitIsbn(input.isbn);
   const authors = input.authors?.length
     ? input.authors
     : (input.author ? input.author.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
@@ -136,8 +159,8 @@ function toBibPayload(input: Partial<BibInput>): Record<string, unknown> {
   const put = (k: string, v: unknown) => { if (v !== undefined && v !== null && v !== '') payload[k] = v; };
   put('title', input.title);
   put('subtitle', input.subtitle);
-  put('isbn13', isbnClean.length === 10 ? undefined : isbnClean);
-  put('isbn10', isbnClean.length === 10 ? isbnClean : undefined);
+  put('isbn13', isbn13);
+  put('isbn10', isbn10);
   if (authors?.length) payload.authors = authors;
   put('publisher_name', input.publisher);
   put('issn', input.issn);
@@ -154,7 +177,22 @@ function toBibPayload(input: Partial<BibInput>): Record<string, unknown> {
   if (input.publication_year != null) payload.publication_year = input.publication_year;
   if (input.pages != null) payload.page_count = input.pages;
   if (input.format) payload.format = FORMAT_TO_API[input.format] ?? 'PHYSICAL';
+  if (opts?.force) payload.force = true;
   return payload;
+}
+
+/** Map a backend possible-duplicate hit onto the UI's lightweight match shape. */
+function fromDuplicateMatch(raw: Record<string, unknown>): BibDuplicateMatch {
+  const authors = Array.isArray(raw.authors) ? (raw.authors as string[]) : undefined;
+  return {
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? ''),
+    subtitle: (raw.subtitle as string) || undefined,
+    authors,
+    format: FORMAT_FROM_API[raw.format as string] ?? 'book',
+    isbn: (raw.isbn13 as string) || (raw.isbn10 as string) || undefined,
+    cover_url: (raw.cover_image_url as string) || undefined,
+  };
 }
 
 /** Map a backend bib record (Ent JSON) back to the UI's BibRecord shape (keeps availability fields). */
@@ -189,14 +227,31 @@ export const catalogApi = {
   getBib: async (orgSlug: string, id: string) =>
     fromBibRecord(await apiClient.get<BibRecord>(`${libBase(orgSlug)}/catalog/bibs/${id}`)),
 
-  createBib: async (orgSlug: string, data: BibInput) =>
-    fromBibRecord(await apiClient.post<BibRecord>(`${libBase(orgSlug)}/catalog/bibs`, toBibPayload(data))),
+  createBib: async (orgSlug: string, data: BibInput, opts?: { force?: boolean }) =>
+    fromBibRecord(await apiClient.post<BibRecord>(`${libBase(orgSlug)}/catalog/bibs`, toBibPayload(data, opts))),
 
-  updateBib: async (orgSlug: string, id: string, data: Partial<BibInput>) =>
-    fromBibRecord(await apiClient.put<BibRecord>(`${libBase(orgSlug)}/catalog/bibs/${id}`, toBibPayload(data))),
+  updateBib: async (orgSlug: string, id: string, data: Partial<BibInput>, opts?: { force?: boolean }) =>
+    fromBibRecord(await apiClient.put<BibRecord>(`${libBase(orgSlug)}/catalog/bibs/${id}`, toBibPayload(data, opts))),
 
   deleteBib: (orgSlug: string, id: string) =>
     apiClient.delete<void>(`${libBase(orgSlug)}/catalog/bibs/${id}`),
+
+  /**
+   * Live pre-flight duplicate check (title and/or ISBN so far), used while cataloging so a
+   * librarian sees "this already exists" before typing the whole record instead of having to
+   * search the catalog manually first.
+   */
+  checkDuplicateBib: async (orgSlug: string, params: { title?: string; isbn?: string; excludeId?: string }): Promise<DuplicateCheckResult> => {
+    const { isbn13, isbn10 } = splitIsbn(params.isbn);
+    const res = await apiClient.get<{ isbn_matches?: Record<string, unknown>[]; title_matches?: Record<string, unknown>[] }>(
+      `${libBase(orgSlug)}/catalog/bibs/check-duplicate`,
+      { title: params.title || undefined, isbn13, isbn10, exclude_id: params.excludeId || undefined },
+    );
+    return {
+      isbn_matches: (res.isbn_matches ?? []).map(fromDuplicateMatch),
+      title_matches: (res.title_matches ?? []).map(fromDuplicateMatch),
+    };
+  },
 
   search: async (orgSlug: string, q: string, params?: { format?: string; subject_id?: string; collection_id?: string; branch_id?: string; language?: string; available?: boolean; page?: number; limit?: number }): Promise<Paginated<BibRecord>> => {
     const res = await apiClient.get<Paginated<BibRecord> | BibRecord[]>(`${libBase(orgSlug)}/catalog/search`, { q, ...params });

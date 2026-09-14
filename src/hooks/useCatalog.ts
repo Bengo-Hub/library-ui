@@ -33,7 +33,7 @@ export function useIsbnLookup(orgSlug: string) {
 export function useCreateBib(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: BibInput) => catalogApi.createBib(orgSlug, data),
+    mutationFn: ({ data, force }: { data: BibInput; force?: boolean }) => catalogApi.createBib(orgSlug, data, { force }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'bibs', orgSlug] }),
   });
 }
@@ -41,11 +41,28 @@ export function useCreateBib(orgSlug: string) {
 export function useUpdateBib(orgSlug: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<BibInput> }) => catalogApi.updateBib(orgSlug, id, data),
+    mutationFn: ({ id, data, force }: { id: string; data: Partial<BibInput>; force?: boolean }) =>
+      catalogApi.updateBib(orgSlug, id, data, { force }),
     onSuccess: (_r, { id }) => {
       qc.invalidateQueries({ queryKey: [KEY, 'bibs', orgSlug] });
       qc.invalidateQueries({ queryKey: [KEY, 'bib', orgSlug, id] });
     },
+  });
+}
+
+/**
+ * Live pre-flight duplicate check while cataloging — debounce title/isbn upstream (see
+ * useDebounce) before passing them in. Disabled until there's enough text to make a check
+ * worthwhile, so it doesn't fire on every keystroke of a 1-2 char title.
+ */
+export function useCheckDuplicateBib(orgSlug: string, params: { title?: string; isbn?: string; excludeId?: string }) {
+  const title = params.title?.trim() ?? '';
+  const isbn = (params.isbn ?? '').replace(/[^0-9Xx]/g, '');
+  return useQuery({
+    queryKey: [KEY, 'check-duplicate', orgSlug, title, isbn, params.excludeId],
+    queryFn: () => catalogApi.checkDuplicateBib(orgSlug, { title, isbn, excludeId: params.excludeId }),
+    enabled: !!orgSlug && (title.length >= 3 || isbn.length >= 8),
+    staleTime: 15_000,
   });
 }
 

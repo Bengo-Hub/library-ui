@@ -26,14 +26,14 @@ function CatalogingContent() {
 
   const saving = createBib.isPending || updateBib.isPending || uploadCover.isPending;
 
-  async function handleSubmit(data: BibInput, covers?: { front?: File; back?: File }) {
+  async function handleSubmit(data: BibInput, covers?: { front?: File; back?: File }, force?: boolean) {
     try {
       let bibId = editId;
       if (editId) {
-        await updateBib.mutateAsync({ id: editId, data });
+        await updateBib.mutateAsync({ id: editId, data, force });
         toast.success('Title updated');
       } else {
-        const created = await createBib.mutateAsync(data);
+        const created = await createBib.mutateAsync({ data, force });
         bibId = created.id;
         toast.success('Title created');
       }
