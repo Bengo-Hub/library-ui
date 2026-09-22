@@ -12,33 +12,21 @@ import { useBranches } from '@/hooks/useBranches';
 import { useAuthorizedValues } from '@/hooks/useAuthorizedValues';
 import { useOutletStore } from '@/store/outlet';
 import { COPY_STATUSES, type Copy, type CopyInput, type CopyStatus } from '@/lib/api/copies';
+import { getLastSelected, setLastSelected } from '@/lib/lastSelected';
 
 const FIELD = 'w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Cataloging a real shipment/batch of books happens over several real data-entry days, but every
-// copy in that batch usually shares ONE true acquisition date — always defaulting to "today" forced
-// staff to remember to hand-edit this field every single time or every copy silently got stamped
-// with whatever day it happened to be keyed in. Instead, remember the last date a staff member
-// deliberately set on an Add (not Edit) and default new Add-Copy dialogs to that, per tenant.
-function lastAcquisitionDateKey(orgSlug: string): string {
-  return `library:copies:lastAcquisitionDate:${orgSlug}`;
-}
-function getLastAcquisitionDate(orgSlug: string): string {
-  if (typeof window === 'undefined') return '';
-  try { return localStorage.getItem(lastAcquisitionDateKey(orgSlug)) ?? ''; } catch { return ''; }
-}
-function setLastAcquisitionDate(orgSlug: string, date: string): void {
-  if (typeof window === 'undefined' || !date) return;
-  try { localStorage.setItem(lastAcquisitionDateKey(orgSlug), date); } catch { /* storage disabled */ }
-}
-
 export function CopyFormDialog({
-  open, orgSlug, bibId, initial, saving, onSubmit, onClose,
+  open, orgSlug, bibId, bibCallNumber, initial, saving, onSubmit, onClose,
 }: {
   open: boolean;
   orgSlug: string;
   bibId: string;
+  /** The title's own default call number (BibRecord.call_number), if set — prefills a NEW copy's
+   *  call number so it doesn't need retyping for every copy of the same title; still freely
+   *  editable per copy. Omit when the caller has no bib loaded (e.g. edit-only contexts). */
+  bibCallNumber?: string;
   initial?: Copy;
   saving?: boolean;
   onSubmit: (data: CopyInput) => void;
@@ -70,12 +58,26 @@ export function CopyFormDialog({
         acquisition_date: initial.acquisition_date, price: initial.price ?? undefined, condition: initial.condition, notes: initial.notes,
       });
     } else {
+      // New copy: default Branch/Status/Shelf location to whatever a staff member last picked in
+      // this dialog (batch-add stickiness, same reasoning as acquisition date below), falling back
+      // to the smarter contextual default (currentOutlet/HQ/first branch, 'available') the first
+      // time it's ever used or if the remembered branch no longer exists. Call number defaults from
+      // the TITLE's own default (bibCallNumber) — see BibForm's "Call number" field — not from the
+      // tenant-wide last-used value, since a call number is specific to this title, not a habit.
+      const lastBranch = getLastSelected('copies:lastBranch', orgSlug);
+      const lastStatus = getLastSelected('copies:lastStatus', orgSlug) as CopyStatus | '';
+      const lastShelf = getLastSelected('copies:lastShelfLocation', orgSlug);
       setForm({
-        bib_record_id: bibId, status: 'available', branch_id: defaultBranchId || undefined,
-        acquisition_date: getLastAcquisitionDate(orgSlug) || todayISO(),
+        bib_record_id: bibId,
+        status: COPY_STATUSES.some((s) => s.value === lastStatus) ? (lastStatus as CopyStatus) : 'available',
+        branch_id: (lastBranch && branches.some((b) => b.id === lastBranch)) ? lastBranch : (defaultBranchId || undefined),
+        shelf_location: lastShelf || undefined,
+        call_number: bibCallNumber || undefined,
+        acquisition_date: getLastSelected('copies:lastAcquisitionDate', orgSlug) || todayISO(),
       });
     }
-  }, [initial, bibId, open, defaultBranchId, orgSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial, bibId, open, defaultBranchId, orgSlug, bibCallNumber, branches]);
 
   function set<K extends keyof CopyInput>(key: K, value: CopyInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -83,7 +85,12 @@ export function CopyFormDialog({
 
   function handleSubmit() {
     if (!form.barcode?.trim()) { toast.error('A copy barcode is required'); return; }
-    if (!initial) setLastAcquisitionDate(orgSlug, form.acquisition_date ?? '');
+    if (!initial) {
+      setLastSelected('copies:lastAcquisitionDate', orgSlug, form.acquisition_date ?? '');
+      setLastSelected('copies:lastBranch', orgSlug, form.branch_id ?? '');
+      setLastSelected('copies:lastStatus', orgSlug, form.status ?? '');
+      setLastSelected('copies:lastShelfLocation', orgSlug, form.shelf_location ?? '');
+    }
     onSubmit(form);
   }
 
@@ -142,7 +149,7 @@ export function CopyFormDialog({
               <input value={form.shelf_location ?? ''} onChange={(e) => set('shelf_location', e.target.value)} className={FIELD} placeholder="e.g. GEN, REF" />
             )}
           </Field>
-          <Field label="Call number" hint="Spine/shelf locator (e.g. 823.914 OGO)">
+          <Field label="Call number" hint="Spine/shelf locator (e.g. 823.914 OGO) — prefilled from the title's default, still editable per copy.">
             <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} className={FIELD} />
           </Field>
           <Field label="Acquisition date" hint="Defaults to the last date you used — set it once per batch/shipment for accurate audit records; it doesn't have to be today.">

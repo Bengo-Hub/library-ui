@@ -18,32 +18,15 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { LANGUAGES } from '@/lib/languages';
 import { useAuthStore } from '@/store/auth';
 import { useBibDraft } from '@/hooks/useBibDraft';
+import { getLastSelected, setLastSelected } from '@/lib/lastSelected';
 
 export interface BibCovers { front?: File; back?: File }
 
 const EMPTY: BibInput = {
   title: '', author: '', authors: [], publisher: '', isbn: '', format: 'book', language: 'en',
-  publication_year: null, edition: '', dewey: '', subjects: [], description: '',
+  publication_year: null, edition: '', dewey: '', call_number: '', subjects: [], description: '',
   cover_url: null, cover_back_url: null, publication_place: '', other_isbns: [],
 };
-
-// Cataloging a real shipment/batch of books usually means every title in that batch shares ONE
-// true place of publication (e.g. a delivery of US-published titles) — leaving the field blank
-// every time forced staff to reselect it per title, or worse, an example placeholder ("Nairobi,
-// Kenya") got mistaken for an actual default. Remember the last place a staff member deliberately
-// saved a NEW title with, and default the next new title to that, per tenant — mirrors the
-// acquisition-date stickiness in CopyFormDialog.tsx.
-function lastPlaceKey(orgSlug: string): string {
-  return `library:catalog:lastPlace:${orgSlug}`;
-}
-function getLastPlace(orgSlug: string): string {
-  if (typeof window === 'undefined') return '';
-  try { return localStorage.getItem(lastPlaceKey(orgSlug)) ?? ''; } catch { return ''; }
-}
-function setLastPlace(orgSlug: string, place: string): void {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(lastPlaceKey(orgSlug), place); } catch { /* storage disabled */ }
-}
 
 const INPUT = 'w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
 
@@ -125,7 +108,7 @@ export function BibForm({
         title: initial.title, subtitle: initial.subtitle, author: initial.author, authors,
         publisher: initial.publisher, publication_year: initial.publication_year ?? null, edition: initial.edition,
         isbn: initial.isbn, issn: initial.issn, format: initial.format, language: initial.language || 'en',
-        dewey: initial.dewey, subjects: initial.subjects ?? [],
+        dewey: initial.dewey, call_number: initial.call_number, subjects: initial.subjects ?? [],
         collection_id: initial.collection_id, description: initial.description, cover_url: initial.cover_url,
         cover_back_url: initial.cover_back_url, publication_place: initial.publication_place, other_isbns: initial.other_isbns ?? [],
         pages: initial.pages ?? null,
@@ -134,14 +117,34 @@ export function BibForm({
       setCoverPreview(initial.cover_url ?? null);
       setBackPreview(initial.cover_back_url ?? null);
     } else {
-      // New title: default Place of publication to the last one a staff member deliberately
-      // saved a title with (see getLastPlace/setLastPlace above), instead of leaving it blank
-      // every time — that's what made cataloging a batch of e.g. US-published titles keep
-      // landing back on an unrelated default.
-      const last = getLastPlace(orgSlug);
-      if (last) setForm((f) => ({ ...f, publication_place: last }));
+      // New title: default several fields to the last value a staff member deliberately saved a
+      // title with, instead of resetting to blank/generic every time — cataloging usually happens
+      // in batches (one shipment/session) that share the same place, format, language, publisher.
+      // Only applied while nothing's been typed/picked yet (each is a plain assignment on the
+      // fresh EMPTY-based form this branch runs against, so it can't clobber anything).
+      const lastPlace = getLastSelected('catalog:lastPlace', orgSlug);
+      const lastFormat = getLastSelected('catalog:lastFormat', orgSlug);
+      const lastLanguage = getLastSelected('catalog:lastLanguage', orgSlug);
+      const lastPublisher = getLastSelected('catalog:lastPublisher', orgSlug);
+      setForm((f) => ({
+        ...f,
+        publication_place: lastPlace || f.publication_place,
+        format: (BIB_FORMATS.some((o) => o.value === lastFormat) ? lastFormat : f.format) as BibFormat,
+        language: (LANGUAGES.some((l) => l.code === lastLanguage) ? lastLanguage : f.language),
+        publisher: lastPublisher || f.publisher,
+      }));
     }
   }, [initial, orgSlug]);
+
+  // Collection can only be validated against the tenant's real list once it has loaded, so it's
+  // defaulted separately from the effect above — guarded on collection_id still being unset so it
+  // can never overwrite a deliberate pick (including one just made via "Add new collection").
+  useEffect(() => {
+    if (initial || form.collection_id || collections.length === 0) return;
+    const last = getLastSelected('catalog:lastCollection', orgSlug);
+    if (last && collections.some((c) => c.id === last)) set('collection_id', last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collections, initial, orgSlug]);
 
   function set<K extends keyof BibInput>(key: K, value: BibInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -219,10 +222,16 @@ export function BibForm({
         { front: coverFile ?? undefined, back: backFile ?? undefined },
         confirmingDuplicate,
       );
-      // Remember this Place of publication for the next NEW title (batch-cataloging stickiness)
-      // — only on create, mirroring CopyFormDialog's acquisition-date behavior; editing an
-      // existing title's place shouldn't change what the next title you ADD defaults to.
-      if (!initial) setLastPlace(orgSlug, form.publication_place ?? '');
+      // Remember these choices for the next NEW title (batch-cataloging stickiness) — only on
+      // create, mirroring CopyFormDialog's acquisition-date behavior; editing an existing title
+      // shouldn't change what the next title you ADD defaults to.
+      if (!initial) {
+        setLastSelected('catalog:lastPlace', orgSlug, form.publication_place ?? '');
+        setLastSelected('catalog:lastFormat', orgSlug, form.format);
+        setLastSelected('catalog:lastLanguage', orgSlug, form.language ?? '');
+        setLastSelected('catalog:lastPublisher', orgSlug, form.publisher ?? '');
+        setLastSelected('catalog:lastCollection', orgSlug, form.collection_id ?? '');
+      }
       await bibDraft.clear();
     } catch {
       // onSubmit already surfaces its own error toast — keep the draft so a failed save (e.g. a
@@ -375,6 +384,9 @@ export function BibForm({
           </Field>
           <Field label="Dewey / classification">
             <input value={form.dewey ?? ''} onChange={(e) => set('dewey', e.target.value)} placeholder="823.914" className={INPUT} />
+          </Field>
+          <Field label="Call number" hint="Default applied to every new copy of this title (see Add Copy) — each copy can still be adjusted individually.">
+            <input value={form.call_number ?? ''} onChange={(e) => set('call_number', e.target.value)} placeholder="823.914 OGO" className={INPUT} />
           </Field>
           <Field label="Collection">
             <Combobox

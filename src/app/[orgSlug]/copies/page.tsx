@@ -26,6 +26,7 @@ import { formatDate } from '@/lib/format';
 import { agentAvailable, blobToHex, listLocalPrinters, printRawToLocalName } from '@/lib/library/print-agent';
 import { getLabelPrintPrefs, setLabelPrintPrefs } from '@/lib/library/label-print-prefs';
 import { printCopyLabel } from '@/lib/library/print-label';
+import { getLastSelected } from '@/lib/lastSelected';
 
 // Thermal label-roll templates: "rows" = labels side-by-side across the roll's width (lanes).
 // Sizes/gaps are engineering estimates fit within a ≤80mm thermal roll (e.g. Xprinter XP-330B)
@@ -176,15 +177,12 @@ function CopiesContent() {
   const copyBulkActions: BulkAction[] = canChangeCopy
     ? [{
         key: 'set-acquisition-date', label: 'Set acquisition date', icon: <CalendarClock className="h-4 w-4" />,
-        onClick: () => { setBulkDate(getLastAcquisitionDateFallback()); setBulkDateOpen(true); },
+        onClick: () => {
+          setBulkDate(getLastSelected('copies:lastAcquisitionDate', orgSlug) || new Date().toISOString().slice(0, 10));
+          setBulkDateOpen(true);
+        },
       }]
     : [];
-
-  function getLastAcquisitionDateFallback(): string {
-    if (typeof window === 'undefined') return new Date().toISOString().slice(0, 10);
-    try { return localStorage.getItem(`library:copies:lastAcquisitionDate:${orgSlug}`) ?? new Date().toISOString().slice(0, 10); }
-    catch { return new Date().toISOString().slice(0, 10); }
-  }
 
   async function handleSubmit(data: CopyInput) {
     try {
@@ -706,6 +704,7 @@ function CopiesContent() {
         open={dialogOpen}
         orgSlug={orgSlug}
         bibId={bibId}
+        bibCallNumber={bib?.call_number}
         initial={editing}
         saving={createCopy.isPending || updateCopy.isPending}
         onSubmit={handleSubmit}

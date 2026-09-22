@@ -109,6 +109,31 @@ Session 18 for full detail. UI-side highlights:
   added to Copies & Holdings for correcting already-mis-dated copies; the "Mark Received" dialog on a
   Purchase Order now collects branch/shelf/date instead of silently defaulting them.
 
+## Title/copy field sharing + dropdown stickiness (2026-09-22)
+
+`BibForm` (the title form) and `CopyFormDialog` (the per-copy form) were analyzed for info that's
+really a property of the TITLE but was being re-entered on every physical copy, plus dropdowns that
+reset to a blank/generic default on every open instead of remembering the last real choice:
+
+- **Call number moved to the title, as a default (not a duplicate)**: `BibForm` gained a "Call
+  number" field (backend `BibRecord.lc_call_number` — previously written by nothing, see
+  `library-api/docs/plan.md`'s matching entry). It is NOT the authoritative per-copy value (that
+  stays on `BookCopy.call_number`, still freely editable per copy — different copies can still be
+  reclassified/reshelved independently) — it's the value a NEW copy of that title starts with.
+  `CopyFormDialog` prefills a new copy's call number from it (`bibCallNumber` prop, wired from the
+  already-loaded `bib` on the per-title Copies & Holdings page); library-api's `CreateCopy` and the
+  Purchase Order `ReceiveLine` batch-create also fall back to it server-side, so a 5-copy shipment or
+  a 20-copy PO receive doesn't need the same call number retyped once per copy.
+- **Dropdown "remembers last choice" extended app-wide across both forms**: previously only Place of
+  publication (`BibForm`) and Acquisition date (`CopyFormDialog`) had this. Now also sticky (per
+  tenant, create-mode only — editing an existing title/copy always shows its own saved values):
+  `BibForm` Format, Language, Publisher, Collection; `CopyFormDialog` Branch, Status, Shelf location.
+  Each remembered value is only used if it's still valid (still exists in the current
+  branches/collections/languages list) — a deleted branch or collection can't silently haunt future
+  copies. The three near-identical hand-rolled localStorage get/set pairs this repo had accumulated
+  were consolidated into one shared `lib/lastSelected.ts` (same on-disk key format, so an existing
+  staff member's browser keeps whatever it already remembered).
+
 ## Constraints
 
 - **By-reference data:** the UI never assumes it owns patron PII — it renders what `/members` returns (auth/CRM are SoT).
