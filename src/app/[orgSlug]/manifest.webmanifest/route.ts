@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { serviceAppName } from '@bengo-hub/shared-ui-lib/branding';
 
 const AUTH_API_BASE =
   process.env.NEXT_PUBLIC_SSO_URL ||
@@ -58,7 +59,8 @@ export async function GET(
 
   const manifest = {
     name: `${name} Library`,
-    short_name: `${name.trim().split(/\s+/)[0] || 'Codevertex'} Library`,
+    // Shared rule (shared-ui-lib branding): "The Urban Loft Cafe" gives "The Urban Library".
+    short_name: serviceAppName(name, 'Library', 'Codevertex'),
     description: 'Browse the catalog, manage circulation, holds and fines.',
     start_url: `/${orgSlug}/`,
     scope: `/${orgSlug}/`,

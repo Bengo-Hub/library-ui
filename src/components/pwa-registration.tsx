@@ -7,10 +7,10 @@ import { requestAppPermissions } from '@/hooks/use-app-permissions';
 const DISMISS_KEY = 'lib_pwa_install_dismissed_until';
 
 export function PWARegistration() {
-  const { tenant } = useBranding();
+  const { tenant, getServiceTitle } = useBranding();
 
-  const tenantFirstWord = tenant?.orgName?.trim().split(/\s+/)[0];
-  const appName = tenantFirstWord ? `${tenantFirstWord} Library` : 'Codevertex Library';
+  // Same title as the header: "The Urban Library" for "The Urban Loft Cafe".
+  const appName = getServiceTitle('Library');
 
   return (
     <PwaInstallPrompt
