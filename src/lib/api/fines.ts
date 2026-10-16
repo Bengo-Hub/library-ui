@@ -79,6 +79,10 @@ export const finesApi = {
   pay: (orgSlug: string, id: string) =>
     apiClient.post<PayResult>(`${libBase(orgSlug)}/fines/${id}/pay`, {}),
 
+  /** Treasury online payment is opt-in; the page hides Pay online unless this is true. */
+  options: (orgSlug: string) =>
+    apiClient.get<{ treasury_enabled: boolean }>(`${libBase(orgSlug)}/fines/options`),
+
   /** Records cash, M-Pesa, card or bank money taken at the desk. No treasury involved. */
   recordPayment: (orgSlug: string, id: string, data: RecordPaymentInput) =>
     apiClient.post<Fine>(`${libBase(orgSlug)}/fines/${id}/record-payment`, data),

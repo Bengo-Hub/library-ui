@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { CircleDollarSign, Plus, Loader2 } from 'lucide-react';
-import { useFines, useWaiveFine, usePayFine, useAssessMembershipFee, useRecordFinePayment, useFinePayments } from '@/hooks/useFines';
+import { useFines, useWaiveFine, usePayFine, useAssessMembershipFee, useRecordFinePayment, useFinePayments, useFineOptions } from '@/hooks/useFines';
 import { uid } from '@/lib/offline-queue';
 import { PAYMENT_METHODS, type PaymentMethod } from '@/lib/api/circulation';
 import { PageHeader, EmptyState } from '@/components/ui/page';
@@ -60,6 +60,7 @@ export default function FinesPage() {
   const [recReference, setRecReference] = useState('');
   const [recKey, setRecKey] = useState('');
   const { data: earlier } = useFinePayments(orgSlug, toRecord?.id);
+  const { data: options } = useFineOptions(orgSlug);
 
   const fines = data?.data ?? [];
   const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / PAGE_SIZE));
@@ -92,7 +93,9 @@ export default function FinesPage() {
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Can perm="library.fines.waive"><Button variant="ghost" size="sm" onClick={() => setToWaive(f)}>Waive</Button></Can>
           <Can perm="library.fines.pay"><Button size="sm" onClick={() => openRecord(f)}>Record payment</Button></Can>
-          <Can perm="library.fines.pay"><Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay online</Button></Can>
+          {options?.treasury_enabled && (
+            <Can perm="library.fines.pay"><Button variant="outline" size="sm" disabled={payFine.isPending} onClick={() => handlePay(f)}>Pay online</Button></Can>
+          )}
         </div>
       ) : null,
     },

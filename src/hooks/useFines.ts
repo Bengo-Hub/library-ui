@@ -43,6 +43,15 @@ export function useRecordFinePayment(orgSlug: string) {
   });
 }
 
+export function useFineOptions(orgSlug: string) {
+  return useQuery({
+    queryKey: [KEY, 'options', orgSlug],
+    queryFn: () => finesApi.options(orgSlug),
+    enabled: !!orgSlug,
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useFinePayments(orgSlug: string, id: string | undefined) {
   return useQuery({
     queryKey: [KEY, 'payments', orgSlug, id],
