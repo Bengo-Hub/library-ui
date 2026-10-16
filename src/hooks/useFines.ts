@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { finesApi, type FineStatus, type FineType, type MembershipFeeInput } from '@/lib/api/fines';
+import { finesApi, type FineStatus, type FineType, type MembershipFeeInput, type RecordPaymentInput } from '@/lib/api/fines';
 
 const KEY = 'fines';
 
@@ -32,6 +32,22 @@ export function useWaiveFine(orgSlug: string) {
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => finesApi.waive(orgSlug, id, reason),
     onSuccess: () => invalidateFines(qc, orgSlug),
+  });
+}
+
+export function useRecordFinePayment(orgSlug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: RecordPaymentInput }) => finesApi.recordPayment(orgSlug, id, data),
+    onSuccess: () => invalidateFines(qc, orgSlug),
+  });
+}
+
+export function useFinePayments(orgSlug: string, id: string | undefined) {
+  return useQuery({
+    queryKey: [KEY, 'payments', orgSlug, id],
+    queryFn: () => finesApi.payments(orgSlug, id!),
+    enabled: !!orgSlug && !!id,
   });
 }
 

@@ -15,6 +15,9 @@ export interface CirculationRule {
   grace_days: number;
   max_fine_cap: string;
   cap_fine_at_replacement_price: boolean;
+  /** When true each overdue day is charged at rental_charge and fine_per_day is ignored. */
+  late_fee_uses_rental_charge: boolean;
+  /** The borrowing fee charged per book at checkout. */
   rental_charge: string;
   replacement_cost: string;
   processing_fee: string;
@@ -35,6 +38,7 @@ export type CirculationRuleInput = {
   grace_days?: number;
   max_fine_cap?: string;
   cap_fine_at_replacement_price?: boolean;
+  late_fee_uses_rental_charge?: boolean;
   rental_charge?: string;
   replacement_cost?: string;
   processing_fee?: string;

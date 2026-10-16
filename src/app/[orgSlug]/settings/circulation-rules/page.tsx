@@ -30,6 +30,7 @@ const EMPTY_FORM: CirculationRuleInput = {
   grace_days: 0,
   max_fine_cap: '0',
   cap_fine_at_replacement_price: false,
+  late_fee_uses_rental_charge: false,
   rental_charge: '0',
   replacement_cost: '0',
   processing_fee: '0',
@@ -87,6 +88,7 @@ export default function CirculationRulesPage() {
       grace_days: rule.grace_days,
       max_fine_cap: rule.max_fine_cap ?? '0',
       cap_fine_at_replacement_price: rule.cap_fine_at_replacement_price,
+      late_fee_uses_rental_charge: rule.late_fee_uses_rental_charge ?? false,
       rental_charge: rule.rental_charge ?? '0',
       replacement_cost: rule.replacement_cost ?? '0',
       processing_fee: rule.processing_fee ?? '0',
@@ -100,6 +102,16 @@ export default function CirculationRulesPage() {
     if (form.loan_period_days <= 0 && !form.is_hourly) {
       toast.error('Loan period must be at least 1 day');
       return;
+    }
+    for (const [label, value] of [
+      ['Borrowing fee', form.rental_charge], ['Late fee per day', form.fine_per_day], ['Max fine cap', form.max_fine_cap],
+      ['Replacement cost', form.replacement_cost], ['Processing fee', form.processing_fee],
+    ] as const) {
+      const n = Number((value ?? '').toString().trim() || '0');
+      if (!Number.isFinite(n) || n < 0) {
+        toast.error(`${label} must be a number of zero or more`);
+        return;
+      }
     }
     try {
       if (editing) {
@@ -180,7 +192,7 @@ export default function CirculationRulesPage() {
           <EmptyState
             icon={<Scale className="h-12 w-12" />}
             title="No circulation rules"
-            description="Add a rule to override the 14-day / 2-renewal system default for specific branch, tier, or format combinations."
+            description="Add a rule to set the borrowing fee, late fee, loan period and renewals for a branch, tier or format. Without one, each member tier's own loan period, renewals and daily fine apply."
             action={<Button onClick={openNew} className="gap-1.5"><Plus className="h-4 w-4" /> New Rule</Button>}
           />
         </Card>
@@ -194,8 +206,8 @@ export default function CirculationRulesPage() {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Format</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Loan days</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Renewals</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Fine/day</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Rental</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Borrowing fee</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">Late fee/day</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">Label</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -216,8 +228,10 @@ export default function CirculationRulesPage() {
                     {rule.is_hourly ? `${rule.loan_period_hours}h` : `${rule.loan_period_days}d`}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{rule.max_renewals}</td>
-                  <td className="px-4 py-3 text-right font-mono">{rule.fine_per_day ?? '0'}</td>
                   <td className="px-4 py-3 text-right font-mono">{rule.rental_charge ?? '0'}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {rule.late_fee_uses_rental_charge ? `${rule.rental_charge ?? '0'} (= fee)` : (rule.fine_per_day ?? '0')}
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{rule.label ?? '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -308,16 +322,38 @@ export default function CirculationRulesPage() {
             </label>
           </div>
 
-          {/* Financial parameters */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Field label="Fine per day">
-              <input className={inputCls} value={form.fine_per_day ?? '0'} onChange={(e) => setField('fine_per_day', e.target.value)} placeholder="0.00" />
-            </Field>
+          {/* Borrowing fee and late fee */}
+          <div className="rounded-xl border border-border p-3 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Borrowing and late fees</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Borrowing fee per book" hint="Charged at checkout. The librarian marks it paid on the circulation desk.">
+                <input className={inputCls} value={form.rental_charge ?? '0'} onChange={(e) => setField('rental_charge', e.target.value)} placeholder="0.00" />
+              </Field>
+              <Field label="Late fee per day" hint={form.late_fee_uses_rental_charge ? 'Uses the borrowing fee for each late day.' : 'Charged for each day a book is returned late.'}>
+                <input
+                  className={inputCls}
+                  disabled={form.late_fee_uses_rental_charge}
+                  value={form.late_fee_uses_rental_charge ? (form.rental_charge ?? '0') : (form.fine_per_day ?? '0')}
+                  onChange={(e) => setField('fine_per_day', e.target.value)}
+                  placeholder="0.00"
+                />
+              </Field>
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.late_fee_uses_rental_charge ?? false}
+                onChange={(e) => setField('late_fee_uses_rental_charge', e.target.checked)}
+                className="rounded"
+              />
+              Charge the borrowing fee again for each late day
+            </label>
+          </div>
+
+          {/* Other financial parameters */}
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Max fine cap">
               <input className={inputCls} value={form.max_fine_cap ?? '0'} onChange={(e) => setField('max_fine_cap', e.target.value)} placeholder="0.00" />
-            </Field>
-            <Field label="Rental charge">
-              <input className={inputCls} value={form.rental_charge ?? '0'} onChange={(e) => setField('rental_charge', e.target.value)} placeholder="0.00" />
             </Field>
             <Field label="Replacement cost">
               <input className={inputCls} value={form.replacement_cost ?? '0'} onChange={(e) => setField('replacement_cost', e.target.value)} placeholder="0.00" />

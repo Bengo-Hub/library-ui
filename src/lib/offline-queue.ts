@@ -1,6 +1,6 @@
 'use client';
 
-import { circulationApi } from '@/lib/api/circulation';
+import { circulationApi, type CheckoutPayment } from '@/lib/api/circulation';
 
 // Offline circulation queue — adapted from the pos-offline-sync idea. When a checkout/return
 // can't reach the API (offline / network error), the action is persisted to localStorage with
@@ -8,7 +8,7 @@ import { circulationApi } from '@/lib/api/circulation';
 // The backend checkout is get-or-create on client_reference, so replays are exactly-once.
 
 export type QueuedAction =
-  | { id: string; kind: 'checkout'; orgSlug: string; payload: { member_id: string; copy_barcode: string; in_house?: boolean; client_reference: string }; queuedAt: number }
+  | { id: string; kind: 'checkout'; orgSlug: string; payload: { member_id: string; copy_barcode: string; in_house?: boolean; client_reference: string; payment?: CheckoutPayment }; queuedAt: number }
   | { id: string; kind: 'return'; orgSlug: string; payload: { copy_barcode: string }; queuedAt: number };
 
 const KEY = 'library-offline-circulation-queue';

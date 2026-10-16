@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { PaymentMethod } from './circulation';
 import { libBase, normalizePage, type Paginated } from './types';
 
 export type FineStatus = 'outstanding' | 'paid' | 'waived' | 'partial';
@@ -38,6 +39,26 @@ export interface PayResult {
   reference?: string;
 }
 
+/** A payment taken at the desk against a fine or fee. Omit amount to settle the whole balance. */
+export interface RecordPaymentInput {
+  amount?: number;
+  method: PaymentMethod;
+  reference?: string;
+  note?: string;
+  /** Replay guard so a double click or retry cannot record the money twice. */
+  client_reference?: string;
+}
+
+export interface FinePayment {
+  id: string;
+  amount: number;
+  method: PaymentMethod;
+  reference?: string;
+  note?: string;
+  received_by?: string;
+  paid_at: string;
+}
+
 export const finesApi = {
   list: async (orgSlug: string, params?: { status?: FineStatus | ''; member_id?: string; type?: FineType | ''; page?: number; limit?: number }): Promise<Paginated<Fine>> => {
     const res = await apiClient.get<Paginated<Fine> | Fine[]>(`${libBase(orgSlug)}/fines`, params);
@@ -57,6 +78,13 @@ export const finesApi = {
   /** Returns { initiate_url } — the UI redirects to the treasury pay page. */
   pay: (orgSlug: string, id: string) =>
     apiClient.post<PayResult>(`${libBase(orgSlug)}/fines/${id}/pay`, {}),
+
+  /** Records cash, M-Pesa, card or bank money taken at the desk. No treasury involved. */
+  recordPayment: (orgSlug: string, id: string, data: RecordPaymentInput) =>
+    apiClient.post<Fine>(`${libBase(orgSlug)}/fines/${id}/record-payment`, data),
+
+  payments: (orgSlug: string, id: string) =>
+    apiClient.get<FinePayment[]>(`${libBase(orgSlug)}/fines/${id}/payments`),
 
   // Membership fees are assessed as a fine of type=membership.
   assessMembershipFee: (orgSlug: string, data: MembershipFeeInput) =>

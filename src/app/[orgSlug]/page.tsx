@@ -62,7 +62,7 @@ export default function DashboardPage() {
           value={formatMoney(summary?.outstanding_fines)}
           icon={<CircleDollarSign className="h-5 w-5" />}
           accent="bg-rose-500/15 text-rose-500"
-          sub={<Link href={`/${orgSlug}/fines`} className="text-primary hover:underline">View fines</Link>}
+          sub={<>Collected today {formatMoney(summary?.collected_today)} · <Link href={`/${orgSlug}/fines`} className="text-primary hover:underline">View fines</Link></>}
         />
         <StatCard
           label="Titles · Copies"

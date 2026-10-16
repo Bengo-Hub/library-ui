@@ -23,18 +23,55 @@ export interface Loan {
   branch_id?: string;
 }
 
+export type PaymentMethod = 'cash' | 'mpesa' | 'card' | 'bank' | 'other';
+
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'mpesa', label: 'M-Pesa' },
+  { value: 'card', label: 'Card' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'other', label: 'Other' },
+];
+
+/** The librarian confirming the borrowing fee was taken at the desk. */
+export interface CheckoutPayment {
+  collected: boolean;
+  method: PaymentMethod;
+  reference?: string;
+}
+
 export interface CheckoutInput {
   member_id: string;
   copy_barcode: string;
   in_house?: boolean;
   /** Client-generated idempotency key so an offline-queued checkout replays exactly-once. */
   client_reference?: string;
+  payment?: CheckoutPayment;
+}
+
+/** The borrowing fee a checkout raised (absent when the rule charges none). */
+export interface CheckoutFee {
+  fine_id: string;
+  amount: number;
+  amount_paid: number;
+  status: string;
+  paid: boolean;
 }
 
 export interface CheckoutResult {
   loan: Loan;
+  fee?: CheckoutFee;
   member?: { id: string; full_name?: string; outstanding_fines?: number; active_loans?: number };
   warnings?: string[];
+}
+
+/** Preview of what a checkout would charge, shown before the librarian confirms. */
+export interface CheckoutQuote {
+  borrowing_fee: number;
+  late_fee_per_day: number;
+  grace_days: number;
+  max_fine_cap: number;
+  due_date: string;
 }
 
 export interface ReturnResult {
@@ -55,6 +92,9 @@ export interface LoanListParams {
 export const circulationApi = {
   checkout: (orgSlug: string, data: CheckoutInput) =>
     apiClient.post<CheckoutResult>(`${libBase(orgSlug)}/circulation/checkout`, data),
+
+  checkoutQuote: (orgSlug: string, params: { member_id: string; copy_barcode: string; in_house?: boolean }) =>
+    apiClient.get<CheckoutQuote>(`${libBase(orgSlug)}/circulation/checkout-quote`, params),
 
   returnCopy: (orgSlug: string, copy_barcode: string) =>
     apiClient.post<ReturnResult>(`${libBase(orgSlug)}/circulation/return`, { copy_barcode }),

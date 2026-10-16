@@ -12,7 +12,10 @@ export interface LibrarySummary {
   total_copies: number;
   available_copies: number;
   collection_value: number;
+  /** Money still owed: fines and unpaid borrowing fees, net of part payments. */
   outstanding_fines: number;
+  /** Fees and fines received today, from the payment ledger. */
+  collected_today?: number;
   checkouts_today?: number;
   returns_today?: number;
   circulation_trend?: { date: string; checkouts: number; returns: number }[];

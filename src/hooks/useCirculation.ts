@@ -28,6 +28,7 @@ function invalidateCirc(qc: ReturnType<typeof useQueryClient>, orgSlug: string) 
   qc.invalidateQueries({ queryKey: ['copies'] });
   qc.invalidateQueries({ queryKey: ['catalog', 'bibs', orgSlug] });
   qc.invalidateQueries({ queryKey: ['reports', 'summary', orgSlug] });
+  qc.invalidateQueries({ queryKey: ['fines'] });
 }
 
 export function useCheckout(orgSlug: string) {
@@ -35,6 +36,17 @@ export function useCheckout(orgSlug: string) {
   return useMutation({
     mutationFn: (data: CheckoutInput) => circulationApi.checkout(orgSlug, data),
     onSuccess: () => invalidateCirc(qc, orgSlug),
+  });
+}
+
+/** Fee and due-date preview for the member and copy on the desk; idle until both are set. */
+export function useCheckoutQuote(orgSlug: string, memberId: string | undefined, copyBarcode: string, inHouse: boolean) {
+  return useQuery({
+    queryKey: [KEY, 'quote', orgSlug, memberId, copyBarcode, inHouse],
+    queryFn: () => circulationApi.checkoutQuote(orgSlug, { member_id: memberId!, copy_barcode: copyBarcode, in_house: inHouse }),
+    enabled: !!orgSlug && !!memberId && copyBarcode.length > 0,
+    staleTime: 30_000,
+    retry: false,
   });
 }
 

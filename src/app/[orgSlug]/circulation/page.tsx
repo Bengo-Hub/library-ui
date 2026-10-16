@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { BookOpen, ScanLine, User, RotateCcw, Undo2, CheckCircle2, AlertTriangle, CloudOff, ShieldAlert } from 'lucide-react';
 import { enqueue, startOfflineSync, uid, queueSize } from '@/lib/offline-queue';
-import { useCheckout, useReturn, useRenew, useMarkLost, useLoans } from '@/hooks/useCirculation';
+import { useCheckout, useCheckoutQuote, useReturn, useRenew, useMarkLost, useLoans } from '@/hooks/useCirculation';
 import { useMembers } from '@/hooks/useMembers';
 import { useDebounce } from '@/hooks/useDebounce';
 import { PageHeader, Skeleton } from '@/components/ui/page';
@@ -14,9 +14,9 @@ import { CapsuleTabs } from '@/components/ui/tabs';
 import { Dialog } from '@/components/ui/dialog';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import type { Member } from '@/lib/api/members';
-import type { Loan } from '@/lib/api/circulation';
+import { PAYMENT_METHODS, type CheckoutPayment, type Loan, type PaymentMethod } from '@/lib/api/circulation';
 import { apiErrorMessage } from '@/lib/api/error-message';
-import { formatDate, formatDateTime, isOverdue } from '@/lib/format';
+import { formatDate, formatDateTime, formatMoney, isOverdue } from '@/lib/format';
 
 type Mode = 'checkout' | 'return';
 
@@ -31,6 +31,14 @@ export default function CirculationPage() {
   const [memberQuery, setMemberQuery] = useState('');
   const [scanTarget, setScanTarget] = useState<null | 'member' | 'copy'>(null);
   const [queued, setQueued] = useState(0);
+  // Borrowing fee: the librarian arms "collected" before scanning, and the choice clears
+  // after each fee so one member's payment is never recorded against the next.
+  const [feeCollected, setFeeCollected] = useState(false);
+  const [feeMethod, setFeeMethod] = useState<PaymentMethod>('cash');
+  const [feeReference, setFeeReference] = useState('');
+
+  // A new member starts with the fee unticked.
+  useEffect(() => { setFeeCollected(false); setFeeReference(''); }, [member?.id]);
 
   // Offline circulation: drain the queue when back online + track its size for the badge.
   useEffect(() => {
@@ -42,6 +50,8 @@ export default function CirculationPage() {
   }, []);
 
   const debouncedMember = useDebounce(memberQuery, 300);
+  const debouncedCopy = useDebounce(copyBarcode.trim(), 400);
+  const { data: quote } = useCheckoutQuote(orgSlug, member?.id, debouncedCopy, inHouse);
   const { data: memberResults } = useMembers(orgSlug, { q: debouncedMember || undefined, status: 'active', limit: 6 });
   const { data: recent, isLoading: loansLoading } = useLoans(orgSlug, { limit: 12 });
 
@@ -60,14 +70,23 @@ export default function CirculationPage() {
     if (!copyBarcode.trim()) { toast.error('Scan the copy barcode'); return; }
     const barcode = copyBarcode.trim();
     const clientRef = uid();
+    const payment: CheckoutPayment | undefined = !inHouse && feeCollected
+      ? { collected: true, method: feeMethod, reference: feeReference.trim() || undefined }
+      : undefined;
     try {
-      const res = await checkout.mutateAsync({ member_id: member.id, copy_barcode: barcode, in_house: inHouse, client_reference: clientRef });
-      toast.success(`Checked out · due ${formatDate(res.loan.due_date)}`);
+      const res = await checkout.mutateAsync({ member_id: member.id, copy_barcode: barcode, in_house: inHouse, client_reference: clientRef, payment });
+      if (res.fee) {
+        const fee = formatMoney(res.fee.amount);
+        toast.success(`Checked out · due ${formatDate(res.loan.due_date)} · borrowing fee ${fee} ${res.fee.paid ? 'paid' : 'not yet paid'}`);
+        if (res.fee.paid) { setFeeCollected(false); setFeeReference(''); }
+      } else {
+        toast.success(`Checked out · due ${formatDate(res.loan.due_date)}`);
+      }
       (res.warnings ?? []).forEach((w) => toast.warning(w));
       setCopyBarcode('');
     } catch (e) {
       if (isOffline(e)) {
-        enqueue({ id: clientRef, kind: 'checkout', orgSlug, payload: { member_id: member.id, copy_barcode: barcode, in_house: inHouse, client_reference: clientRef }, queuedAt: Date.now() });
+        enqueue({ id: clientRef, kind: 'checkout', orgSlug, payload: { member_id: member.id, copy_barcode: barcode, in_house: inHouse, client_reference: clientRef, payment }, queuedAt: Date.now() });
         setQueued(queueSize());
         toast.info('Offline — checkout queued and will sync when back online.');
         setCopyBarcode('');
@@ -200,6 +219,49 @@ export default function CirculationPage() {
                 <input type="checkbox" checked={inHouse} onChange={(e) => setInHouse(e.target.checked)} className="h-4 w-4 rounded border-input" />
                 In-house use (reading room — does not leave the library)
               </label>
+            )}
+
+            {mode === 'checkout' && !inHouse && (
+              <div className="rounded-xl border border-border p-3 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Borrowing fee</p>
+                {quote ? (
+                  <p className="text-sm">
+                    {quote.borrowing_fee > 0
+                      ? <><span className="font-semibold">{formatMoney(quote.borrowing_fee)}</span> for this book</>
+                      : 'No borrowing fee for this book'}
+                    <span className="text-muted-foreground">
+                      {' · due '}{formatDate(quote.due_date)}
+                      {quote.late_fee_per_day > 0 ? ` · late fee ${formatMoney(quote.late_fee_per_day)} per day` : ''}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Pick a member and scan a copy to see the fee.</p>
+                )}
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <input type="checkbox" checked={feeCollected} onChange={(e) => setFeeCollected(e.target.checked)} className="h-4 w-4 rounded border-input" />
+                  Fee collected at the desk (marks it paid)
+                </label>
+                {feeCollected && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={feeMethod}
+                      onChange={(e) => setFeeMethod(e.target.value as PaymentMethod)}
+                      className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+                    >
+                      {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
+                    <input
+                      value={feeReference}
+                      onChange={(e) => setFeeReference(e.target.value)}
+                      placeholder={feeMethod === 'cash' ? 'Receipt no. (optional)' : 'Reference (optional)'}
+                      className="rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
+                    />
+                  </div>
+                )}
+                {!feeCollected && (quote?.borrowing_fee ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">Left unticked, the fee stays on the member&apos;s account until it is paid.</p>
+                )}
+              </div>
             )}
 
             {mode === 'checkout' ? (
