@@ -5,14 +5,13 @@ import { BookText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Derives the server-generated thumbnail path for a cover URL (see library-api's UploadCover,
- * which writes "{bibID}_{side}_thumb.{ext}" alongside the full-resolution original at
- * "{bibID}_{side}.{ext}"). Only applies to real /media/ URLs — local blob:/data: object URLs
- * (used for an unsaved cover picked in BibForm) have no server-side thumbnail and must be
- * rendered as-is.
+ * Derives the server-generated thumbnail link for an uploaded cover (see library-api's
+ * UploadCover, which stores "<uuid>_thumb.<ext>" next to the original under
+ * library/<tenant>/covers/<bib>/ on the media store). Open Library links and local blob:/data:
+ * object URLs (an unsaved cover picked in BibForm) have no thumbnail and are rendered as is.
  */
 function thumbUrl(url: string): string | null {
-  if (!url.includes('/media/covers/')) return null;
+  if (!url.includes('/covers/') || url.startsWith('blob:') || url.startsWith('data:')) return null;
   const idx = url.lastIndexOf('.');
   if (idx === -1) return null;
   return `${url.slice(0, idx)}_thumb${url.slice(idx)}`;

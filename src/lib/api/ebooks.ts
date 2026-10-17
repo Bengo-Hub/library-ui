@@ -47,15 +47,20 @@ export const ebooksApi = {
 
   get: (orgSlug: string, id: string) => apiClient.get<Ebook>(`${libBase(orgSlug)}/ebooks/${id}`),
 
-  upload: (orgSlug: string, file: File, meta: { title: string; author?: string; bib_record_id?: string; format?: EbookFormat; total_licenses?: number }): Promise<Ebook> => {
+  /**
+   * Two steps: the file goes to the private media store (POST /ebooks/files answers its key and
+   * the format read from the bytes), then the e-book record is created with that key.
+   */
+  upload: async (orgSlug: string, file: File, meta: { title: string; author?: string; bib_record_id?: string; format?: EbookFormat; total_licenses?: number }): Promise<Ebook> => {
     const form = new FormData();
     form.append('file', file);
-    form.append('title', meta.title);
-    if (meta.author) form.append('author', meta.author);
-    if (meta.bib_record_id) form.append('bib_record_id', meta.bib_record_id);
-    if (meta.format) form.append('format', meta.format);
-    if (meta.total_licenses != null) form.append('total_licenses', String(meta.total_licenses));
-    return apiClient.post<Ebook>(`${libBase(orgSlug)}/ebooks`, form);
+    const stored = await apiClient.post<{ file_url: string; format: string; size: number }>(`${libBase(orgSlug)}/ebooks/files`, form);
+    return apiClient.post<Ebook>(`${libBase(orgSlug)}/ebooks`, {
+      bib_record_id: meta.bib_record_id,
+      file_url: stored.file_url,
+      format: stored.format,
+      ...(meta.total_licenses != null ? { max_concurrent_loans: meta.total_licenses } : {}),
+    });
   },
 
   /** Borrow a license — returns { loan_id, access_token } used to stream the content. */
