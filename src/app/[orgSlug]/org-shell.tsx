@@ -14,7 +14,8 @@ import { Footer } from '@/components/footer';
 import { SubscriptionBanner } from '@/components/subscription/subscription-banner';
 import { PWAUpdateBanner } from '@/components/pwa-update-banner';
 import { PWARegistration } from '@/components/pwa-registration';
-import { SubscriptionProvider } from '@bengo-hub/shared-ui-lib/subscription';
+import { PlanServiceLock, SubscriptionProvider } from '@bengo-hub/shared-ui-lib/subscription';
+import { useAuthStore } from '@/store/auth';
 import { useSubscriptionEntitlements } from '@/hooks/use-subscription';
 
 /**
@@ -52,6 +53,7 @@ function ManifestInjector() {
 }
 
 export function OrgShell({ children }: { children: ReactNode }) {
+    const session = useAuthStore((s) => s.session);
     const [queryClient] = useState(() => new QueryClient({
         defaultOptions: {
             queries: {
@@ -98,7 +100,16 @@ export function OrgShell({ children }: { children: ReactNode }) {
                                 <SubscriptionBanner />
                                 <main className="flex-1 min-h-0 overflow-y-auto bg-accent/5">
                                     <div className="min-h-full flex flex-col">
-                                        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-5 sm:py-6">{children}</div>
+                                        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+                                            {/* A plan without the library shows the upgrade card instead of a bare 403. */}
+                                            <PlanServiceLock
+                                                serviceTag="library"
+                                                accessToken={session?.accessToken}
+                                                upgradeBaseUrl={process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL}
+                                            >
+                                                {children}
+                                            </PlanServiceLock>
+                                        </div>
                                         <Footer />
                                         {/* Spacer so content/footer clears the mobile bottom tab bar (h-16) + safe area. */}
                                         <div className="lg:hidden h-16 shrink-0" style={{ marginBottom: 'env(safe-area-inset-bottom)' }} aria-hidden />
