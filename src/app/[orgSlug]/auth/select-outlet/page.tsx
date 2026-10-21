@@ -7,6 +7,7 @@ import { useBranding } from '@/providers/branding-provider';
 import { Globe, Library, ChevronRight } from 'lucide-react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 
 // HQ = can access all branches. Driven by the server flag; this list is a client-side fallback.
 const HQ_ROLES = ['admin', 'library_admin', 'superuser', 'super_admin'];
@@ -107,7 +108,7 @@ function SelectBranchContent() {
       <div className="w-full max-w-lg">
         <div className="flex justify-center mb-8">
           {tenant?.logoUrl ? (
-            <img src={tenant.logoUrl} alt={tenant.name ?? orgSlug} className="h-12 w-auto object-contain" />
+            <MediaImage src={tenant.logoUrl} displayWidth={160} loading="eager" alt={tenant.name ?? orgSlug} className="h-12 w-auto object-contain" />
           ) : (
             <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
               <Library className="h-6 w-6 text-primary-foreground" />

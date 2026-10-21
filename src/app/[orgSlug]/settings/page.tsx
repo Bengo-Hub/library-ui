@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page';
 import { Card } from '@/components/ui/base';
 import { useBranding } from '@/providers/branding-provider';
 import { useMe } from '@/hooks/useMe';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 
 export default function SettingsPage() {
   const params = useParams();
@@ -34,8 +35,7 @@ export default function SettingsPage() {
       <Card className="mb-6">
         <div className="p-6 flex items-center gap-4">
           {tenant?.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={tenant.logoUrl} alt={tenant.name ?? orgSlug} className="h-14 w-14 rounded-xl object-contain bg-muted p-1" />
+            <MediaImage src={tenant.logoUrl} displayWidth={56} alt={tenant.name ?? orgSlug} className="h-14 w-14 rounded-xl object-contain bg-muted p-1" />
           ) : (
             <div className="h-14 w-14 rounded-xl bg-primary/15 text-primary flex items-center justify-center"><Library className="h-7 w-7" /></div>
           )}

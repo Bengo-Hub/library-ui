@@ -33,6 +33,7 @@ import { useOutletStore } from '@/store/outlet';
 import { useEntitlements } from '@bengo-hub/shared-ui-lib/subscription';
 import { isKnownFeature, requiredPlanLabel } from '@/lib/subscription/feature-catalog';
 import { usePermissions } from '@/hooks/usePermissions';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 
 const SUBSCRIBE_URL = process.env.NEXT_PUBLIC_SUBSCRIPTIONS_UI_URL || 'https://pricing.codevertexafrica.com';
 
@@ -250,7 +251,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       <div className="border-b border-sidebar-border shrink-0 overflow-hidden" style={{ height: '72px' }}>
         {tenant?.logoUrl ? (
           <div className="flex items-center h-full px-3 py-2">
-            <img src={tenant.logoUrl} alt={tenant.name ?? orgSlug} className="h-full w-auto max-w-full object-contain" />
+            <MediaImage src={tenant.logoUrl} displayWidth={220} loading="eager" alt={tenant.name ?? orgSlug} className="h-full w-auto max-w-full object-contain" />
           </div>
         ) : (
           <div className="flex items-center gap-3 h-full px-4">
