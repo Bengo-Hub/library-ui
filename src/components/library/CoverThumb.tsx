@@ -2,48 +2,46 @@
 
 import { useEffect, useState } from 'react';
 import { BookText } from 'lucide-react';
+import { MediaImage } from '@bengo-hub/shared-ui-lib/media';
 import { cn } from '@/lib/utils';
-
-/**
- * Derives the server-generated thumbnail link for an uploaded cover (see library-api's
- * UploadCover, which stores "<uuid>_thumb.<ext>" next to the original under
- * library/<tenant>/covers/<bib>/ on the media store). Open Library links and local blob:/data:
- * object URLs (an unsaved cover picked in BibForm) have no thumbnail and are rendered as is.
- */
-function thumbUrl(url: string): string | null {
-  if (!url.includes('/covers/') || url.startsWith('blob:') || url.startsWith('data:')) return null;
-  const idx = url.lastIndexOf('.');
-  if (idx === -1) return null;
-  return `${url.slice(0, idx)}_thumb${url.slice(idx)}`;
-}
 
 /**
  * Book-cover thumbnail with a typed fallback placeholder.
  *
- * Requests the small server-generated thumbnail first (a fraction of the full-resolution
- * original's size — the previous plain <img src={url}> always fetched the original, which is
- * the main reason catalog grid pages felt slow) and falls back to the full-resolution original
- * on load error, then to the placeholder icon if that also fails. Covers uploaded before
- * thumbnailing shipped, and webp sources (no server-side webp encoder), have no _thumb file on
- * disk, so this fallback chain matters in practice, not just for edge cases.
+ * Uploaded covers are resized at the edge (Cloudflare Image Transformations through
+ * shared-ui-lib's MediaImage), so a grid fetches a small cover instead of the full-resolution
+ * original. Open Library links and local blob:/data: previews (an unsaved cover picked in BibForm)
+ * are shown as they are. If the cover cannot be loaded at all, the placeholder icon is shown.
  */
-export function CoverThumb({ url, title, className }: { url?: string | null; title?: string; className?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
+export function CoverThumb({
+  url,
+  title,
+  className,
+  displayWidth = 256,
+}: {
+  url?: string | null;
+  title?: string;
+  className?: string;
+  /** The widest the cover is shown, in CSS pixels. */
+  displayWidth?: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [url]);
 
-  useEffect(() => {
-    setSrc(url ? thumbUrl(url) ?? url : null);
-  }, [url]);
-
-  if (url && src) {
+  if (url && !failed) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
+      <MediaImage
+        src={url}
         alt={title ?? 'cover'}
-        loading="lazy"
-        decoding="async"
+        displayWidth={displayWidth}
+        fit="cover"
+        aspect={4 / 3}
         className={cn('object-cover rounded-lg bg-muted', className)}
-        onError={() => setSrc((cur) => (cur === url ? null : url))}
+        onError={(e) => {
+          // MediaImage retries the original after a resized cover fails; show the placeholder
+          // only when the original fails too.
+          if (e.currentTarget.src === url) setFailed(true);
+        }}
       />
     );
   }

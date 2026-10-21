@@ -472,7 +472,7 @@ function DuplicateWarning({ orgSlug, matches, variant, reason, confirming, onCan
       <ul className="space-y-1.5">
         {matches.map((m) => (
           <li key={m.id} className="flex items-center gap-2 rounded-lg bg-background/60 p-1.5">
-            <CoverThumb url={m.cover_url} title={m.title} className="h-10 w-8 shrink-0 rounded" />
+            <CoverThumb displayWidth={32} url={m.cover_url} title={m.title} className="h-10 w-8 shrink-0 rounded" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-foreground">{m.title}{m.subtitle ? `: ${m.subtitle}` : ''}</p>
               <p className="truncate text-xs text-muted-foreground">

@@ -182,9 +182,9 @@ export default function BibDetailPage() {
       <Card>
         <div className="p-6 flex flex-col sm:flex-row gap-6">
           <div className="shrink-0 mx-auto sm:mx-0 space-y-2">
-            <CoverThumb url={bib.cover_url} title={bib.title} className="w-40 aspect-[3/4]" />
+            <CoverThumb displayWidth={160} url={bib.cover_url} title={bib.title} className="w-40 aspect-[3/4]" />
             {bib.cover_back_url && (
-              <CoverThumb url={bib.cover_back_url} title={`${bib.title} (back)`} className="w-40 aspect-[3/4] opacity-90" />
+              <CoverThumb displayWidth={160} url={bib.cover_back_url} title={`${bib.title} (back)`} className="w-40 aspect-[3/4] opacity-90" />
             )}
           </div>
           <div className="flex-1 min-w-0">
