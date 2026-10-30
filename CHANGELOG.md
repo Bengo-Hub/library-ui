@@ -6,6 +6,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+### Added (2026-10-30 - accession number order)
+- Copies & Holdings lists (the title page, a title's copies page and the all-copies browser) are arranged by accession number, ascending or descending, from an order picker. The choice is remembered in the browser. The all-copies browser sorts on the server, so the order holds across pages, and its Acquired header sorts by date.
+
 ### Planned (Phase 2)
 - E-book purchase flow + secured (token-gated) download UI.
 - Membership-fee + dunning surfaces.

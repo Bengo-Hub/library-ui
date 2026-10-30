@@ -78,7 +78,8 @@ export const copiesApi = {
     return Array.isArray(res) ? res : (res.data ?? []);
   },
 
-  list: async (orgSlug: string, params?: { status?: CopyStatus | ''; branch_id?: string; q?: string; page?: number; limit?: number }): Promise<Paginated<Copy>> => {
+  // sort: accession | -accession (default accession) | acquired | -acquired | -created.
+  list: async (orgSlug: string, params?: { status?: CopyStatus | ''; branch_id?: string; q?: string; sort?: string; page?: number; limit?: number }): Promise<Paginated<Copy>> => {
     const res = await apiClient.get<Paginated<Copy> | Copy[]>(`${libBase(orgSlug)}/catalog/copies`, params);
     return normalizePage<Copy>(res);
   },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -8,6 +8,8 @@ import { ArrowLeft, BookMarked, BookText, FileDown, Pencil, Printer, Sparkles, T
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { useBib, useDeleteBib, useRecommendations } from '@/hooks/useCatalog';
 import { useBibCopies } from '@/hooks/useCopies';
+import { AccessionOrderSelect } from '@/components/library/AccessionOrderSelect';
+import { sortByAccession, useAccessionOrder } from '@/lib/library/accession-order';
 import { catalogApi } from '@/lib/api/catalog';
 import { usePlaceHold } from '@/hooks/useHolds';
 import { Button, Badge, Card } from '@/components/ui/base';
@@ -38,7 +40,10 @@ export default function BibDetailPage() {
   const id = params?.id as string;
 
   const { data: bib, isLoading } = useBib(orgSlug, id);
-  const { data: copies = [], isLoading: copiesLoading } = useBibCopies(orgSlug, id);
+  const { data: bibCopies = [], isLoading: copiesLoading } = useBibCopies(orgSlug, id);
+  // Holdings in accession number order; the choice is shared with the Copies pages.
+  const [accessionOrder, setAccessionOrder] = useAccessionOrder();
+  const copies = useMemo(() => sortByAccession(bibCopies, accessionOrder), [bibCopies, accessionOrder]);
   const { data: recs = [] } = useRecommendations(orgSlug, id);
   const deleteBib = useDeleteBib(orgSlug);
   const placeHold = usePlaceHold(orgSlug);
@@ -244,7 +249,10 @@ export default function BibDetailPage() {
         <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
           <BookText className="h-4 w-4" /> Copies & Holdings
         </h2>
-        <Link href={`/${orgSlug}/copies?bib=${bib.id}`} className="text-sm font-semibold text-primary hover:underline">Manage copies</Link>
+        <div className="flex items-center gap-3">
+          {copies.length > 1 && <AccessionOrderSelect value={accessionOrder} onChange={setAccessionOrder} className="min-w-48 h-9 text-sm" />}
+          <Link href={`/${orgSlug}/copies?bib=${bib.id}`} className="text-sm font-semibold text-primary hover:underline">Manage copies</Link>
+        </div>
       </div>
 
       <DataTable<Copy>

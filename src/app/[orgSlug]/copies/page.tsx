@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -11,7 +11,7 @@ import { useBranches } from '@/hooks/useBranches';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
-import { DataTable, type DataTableColumn, type BulkAction } from '@bengo-hub/shared-ui-lib/data-table';
+import { DataTable, type DataTableColumn, type BulkAction, type SortState } from '@bengo-hub/shared-ui-lib/data-table';
 import { CapsuleTabs } from '@/components/ui/tabs';
 import { Select, Field } from '@/components/ui/form';
 import { Dialog } from '@/components/ui/dialog';
@@ -20,6 +20,8 @@ import { Can } from '@/components/auth/Can';
 import { ScannerInput } from '@/components/library/ScannerInput';
 import { useDocumentPreview, PdfPreview } from '@bengo-hub/shared-ui-lib';
 import { CopyFormDialog } from '@/components/library/CopyFormDialog';
+import { AccessionOrderSelect } from '@/components/library/AccessionOrderSelect';
+import { accessionSortParam, sortByAccession, useAccessionOrder, type AccessionOrder } from '@/lib/library/accession-order';
 import { copiesApi, COPY_STATUSES, type Copy, type CopyInput, type CopyStatus, type LabelFormat, type LabelTemplateName } from '@/lib/api/copies';
 import { apiErrorMessage } from '@/lib/api/error-message';
 import { formatDate } from '@/lib/format';
@@ -66,6 +68,28 @@ function CopiesContent() {
   const [branchFilter, setBranchFilter] = useState('');
   const [searchQ, setSearchQ] = useState('');
   const [page, setPage] = useState(1);
+  // Accession order (remembered per browser) drives both views; the all-copies list sorts on the
+  // server so the order holds across pages, and its Acquired header can sort by date instead.
+  const [accessionOrder, setAccessionOrder] = useAccessionOrder();
+  const [listSort, setListSort] = useState<SortState>({ key: 'barcode', dir: accessionOrder });
+  const serverSort = listSort.key === 'acquired'
+    ? (listSort.dir === 'desc' ? '-acquired' : 'acquired')
+    : accessionSortParam(listSort.dir);
+  // Follow the remembered order once it loads after mount (see useAccessionOrder).
+  useEffect(() => {
+    setListSort((s) => (s.key === 'barcode' ? { key: 'barcode', dir: accessionOrder } : s));
+  }, [accessionOrder]);
+  function chooseAccessionOrder(o: AccessionOrder) {
+    setAccessionOrder(o);
+    setListSort({ key: 'barcode', dir: o });
+    setPage(1);
+  }
+  function onListSortChange(s: SortState | null) {
+    if (!s) { chooseAccessionOrder(accessionOrder); return; }
+    if (s.key === 'barcode') { chooseAccessionOrder(s.dir); return; }
+    setListSort(s);
+    setPage(1);
+  }
   const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
   const [bulkSheet, setBulkSheet] = useState<'l7160' | '5160'>('l7160');
   // Seeded from the last-saved label-print prefs (see lib/library/label-print-prefs.ts) so this
@@ -125,10 +149,12 @@ function CopiesContent() {
 
   const { data: bib } = useBib(orgSlug, bibId);
   const { data: bibCopies = [], isLoading: bibLoading } = useBibCopies(orgSlug, bibId);
+  const sortedBibCopies = useMemo(() => sortByAccession(bibCopies, accessionOrder), [bibCopies, accessionOrder]);
   const { data: copiesPage, isLoading: allLoading } = useCopies(orgSlug, !bibId ? {
     status: statusFilter || undefined,
     branch_id: branchFilter || undefined,
     q: searchQ || undefined,
+    sort: serverSort,
     page,
     limit: PAGE_SIZE,
   } : undefined);
@@ -400,6 +426,7 @@ function CopiesContent() {
               </Badge>
             )}
           </div>
+          <AccessionOrderSelect value={accessionOrder} onChange={chooseAccessionOrder} />
           {branches.length > 0 && (
             <Select
               value={branchFilter}
@@ -415,6 +442,8 @@ function CopiesContent() {
         <DataTable
           columns={globalColumns}
           rows={allCopies}
+          sort={listSort}
+          onSortChange={onListSortChange}
           rowKey={(c) => c.id}
           loading={allLoading}
           loadingRows={8}
@@ -638,7 +667,7 @@ function CopiesContent() {
     );
   }
 
-  const copies = bibCopies;
+  const copies = sortedBibCopies;
   const isLoading = bibLoading;
 
   const columns: DataTableColumn<Copy>[] = [
@@ -650,7 +679,7 @@ function CopiesContent() {
     { key: 'branch', header: 'Branch', accessor: (c) => c.branch_name ?? '', render: (c) => c.branch_name ?? '—' },
     { key: 'shelf', header: 'Shelf', accessor: (c) => c.shelf_location ?? '', render: (c) => c.shelf_location ?? '—' },
     {
-      key: 'acquired', header: 'Acquired', accessor: (c) => c.acquisition_date,
+      key: 'acquired', header: 'Acquired', sortable: true, accessor: (c) => c.acquisition_date,
       render: (c) => <span className="text-muted-foreground">{formatDate(c.acquisition_date)}</span>,
     },
     {
@@ -685,6 +714,10 @@ function CopiesContent() {
         icon={<BookCopy className="h-5 w-5" />}
         actions={<Can perm="library.copies.add"><Button className="gap-1.5" onClick={() => { setEditing(undefined); setDialogOpen(true); }}><Plus className="h-4 w-4" /> Add Copy</Button></Can>}
       />
+
+      <div className="mb-3 flex justify-end">
+        <AccessionOrderSelect value={accessionOrder} onChange={setAccessionOrder} />
+      </div>
 
       <DataTable
         columns={columns}

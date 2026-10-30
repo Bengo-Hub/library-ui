@@ -13,7 +13,7 @@ export function useBibCopies(orgSlug: string, bibId: string) {
   });
 }
 
-export function useCopies(orgSlug: string, params?: { status?: CopyStatus | ''; branch_id?: string; q?: string; page?: number; limit?: number }) {
+export function useCopies(orgSlug: string, params?: { status?: CopyStatus | ''; branch_id?: string; q?: string; sort?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: [KEY, 'list', orgSlug, params],
     queryFn: () => copiesApi.list(orgSlug, params),
