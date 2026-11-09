@@ -5,7 +5,7 @@ import { Search, User } from 'lucide-react';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { useMembers } from '@/hooks/useMembers';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch } from '@bengo-hub/shared-ui-lib/search';
 
 /** Searchable member selector dialog — reused by place-hold, membership fee, etc. */
 export function MemberPicker({
@@ -20,9 +20,9 @@ export function MemberPicker({
   onSelect: (memberId: string) => void;
   onCancel: () => void;
 }) {
-  const [q, setQ] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
-  const debounced = useDebounce(q, 300);
+  const search = useDebouncedSearch();
+  const debounced = search.term;
   const { data, isFetching } = useMembers(orgSlug, { q: debounced || undefined, status: 'active', limit: 8 });
   const members = data?.data ?? [];
 
@@ -47,8 +47,7 @@ export function MemberPicker({
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          {...search.inputProps}
           placeholder="Search member by name, no. or phone…"
           className="w-full h-10 rounded-lg border border-input bg-transparent pl-10 pr-3 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
         />

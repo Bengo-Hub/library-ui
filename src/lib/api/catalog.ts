@@ -226,8 +226,8 @@ function fromBibRecord(raw: BibRecord | Record<string, unknown> | null | undefin
 }
 
 export const catalogApi = {
-  listBibs: async (orgSlug: string, params?: BibListParams): Promise<Paginated<BibRecord>> => {
-    const res = await apiClient.get<Paginated<BibRecord> | BibRecord[]>(`${libBase(orgSlug)}/catalog/bibs`, params);
+  listBibs: async (orgSlug: string, params?: BibListParams, signal?: AbortSignal): Promise<Paginated<BibRecord>> => {
+    const res = await apiClient.get<Paginated<BibRecord> | BibRecord[]>(`${libBase(orgSlug)}/catalog/bibs`, params, { signal });
     const page = normalizePage<BibRecord>(res);
     return { ...page, data: page.data.map(fromBibRecord) };
   },
@@ -249,11 +249,12 @@ export const catalogApi = {
    * librarian sees "this already exists" before typing the whole record instead of having to
    * search the catalog manually first.
    */
-  checkDuplicateBib: async (orgSlug: string, params: { title?: string; isbn?: string; excludeId?: string }): Promise<DuplicateCheckResult> => {
+  checkDuplicateBib: async (orgSlug: string, params: { title?: string; isbn?: string; excludeId?: string }, signal?: AbortSignal): Promise<DuplicateCheckResult> => {
     const { isbn13, isbn10 } = splitIsbn(params.isbn);
     const res = await apiClient.get<{ isbn_matches?: Record<string, unknown>[]; title_matches?: Record<string, unknown>[] }>(
       `${libBase(orgSlug)}/catalog/bibs/check-duplicate`,
       { title: params.title || undefined, isbn13, isbn10, exclude_id: params.excludeId || undefined },
+      { signal },
     );
     return {
       isbn_matches: (res.isbn_matches ?? []).map(fromDuplicateMatch),
@@ -261,8 +262,8 @@ export const catalogApi = {
     };
   },
 
-  search: async (orgSlug: string, q: string, params?: { format?: string; subject_id?: string; collection_id?: string; branch_id?: string; language?: string; available?: boolean; page?: number; limit?: number }): Promise<Paginated<BibRecord>> => {
-    const res = await apiClient.get<Paginated<BibRecord> | BibRecord[]>(`${libBase(orgSlug)}/catalog/search`, { q, ...params });
+  search: async (orgSlug: string, q: string, params?: { format?: string; subject_id?: string; collection_id?: string; branch_id?: string; language?: string; available?: boolean; page?: number; limit?: number }, signal?: AbortSignal): Promise<Paginated<BibRecord>> => {
+    const res = await apiClient.get<Paginated<BibRecord> | BibRecord[]>(`${libBase(orgSlug)}/catalog/search`, { q, ...params }, { signal });
     const page = normalizePage<BibRecord>(res);
     return { ...page, data: page.data.map(fromBibRecord) };
   },

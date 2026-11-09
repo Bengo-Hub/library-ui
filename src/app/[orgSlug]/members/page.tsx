@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Users, Plus, Search, Pencil, Eye, CircleDollarSign, Ban, CheckCircle2, Trash2, CreditCard, Upload } from 'lucide-react';
 import { useMembers, useCreateMember, useUpdateMember, useIssueMembershipFee, useDeleteMember } from '@/hooks/useMembers';
 import { membersApi } from '@/lib/api/members';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch } from '@bengo-hub/shared-ui-lib/search';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
 import { DataTable, type DataTableColumn } from '@bengo-hub/shared-ui-lib/data-table';
@@ -34,10 +34,11 @@ export default function MembersPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
-  const [q, setQ] = useState('');
   const [status, setStatus] = useState<MemberStatus | ''>('');
   const [page, setPage] = useState(1);
-  const debouncedQ = useDebounce(q, 300);
+  // The box updates on every key; only the settled term reaches the query, and a new term starts at page 1.
+  const search = useDebouncedSearch({ onTermChange: () => setPage(1) });
+  const debouncedQ = search.term;
 
   const { data, isLoading } = useMembers(orgSlug, { q: debouncedQ || undefined, status: status || undefined, page, limit: PAGE_SIZE });
   const createMember = useCreateMember(orgSlug);
@@ -166,7 +167,7 @@ export default function MembersPage() {
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search by name, membership no. or phone…" className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-4 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+        <input {...search.inputProps} placeholder="Search by name, membership no. or phone…" className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-4 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
       </div>
 
       <CapsuleTabs

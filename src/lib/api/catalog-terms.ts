@@ -7,9 +7,9 @@ interface TermRow { value: string }
 
 export const catalogTermsApi = {
   /** Search dictionary suggestions for a cataloging field (author/publisher/place/subject). */
-  list: async (orgSlug: string, kind: TermKind, q?: string): Promise<string[]> => {
+  list: async (orgSlug: string, kind: TermKind, q?: string, signal?: AbortSignal): Promise<string[]> => {
     const res = await apiClient.get<{ data?: TermRow[] } | TermRow[]>(
-      `${libBase(orgSlug)}/catalog/terms`, { kind, q: q || undefined },
+      `${libBase(orgSlug)}/catalog/terms`, { kind, q: q || undefined }, { signal },
     );
     const rows = Array.isArray(res) ? res : (res.data ?? []);
     return rows.map((r) => r.value);

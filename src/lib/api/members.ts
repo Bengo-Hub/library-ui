@@ -122,8 +122,8 @@ export interface LoanPolicyInput {
 }
 
 export const membersApi = {
-  list: async (orgSlug: string, params?: { q?: string; status?: MemberStatus | ''; tier_id?: string; page?: number; limit?: number }): Promise<Paginated<Member>> => {
-    const res = await apiClient.get<Paginated<Member> | Member[]>(`${libBase(orgSlug)}/members`, params);
+  list: async (orgSlug: string, params?: { q?: string; status?: MemberStatus | ''; tier_id?: string; page?: number; limit?: number }, signal?: AbortSignal): Promise<Paginated<Member>> => {
+    const res = await apiClient.get<Paginated<Member> | Member[]>(`${libBase(orgSlug)}/members`, params, { signal });
     return normalizePage<Member>(res);
   },
   get: (orgSlug: string, id: string) => apiClient.get<Member>(`${libBase(orgSlug)}/members/${id}`),

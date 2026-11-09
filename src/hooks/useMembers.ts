@@ -8,7 +8,7 @@ const KEY = 'members';
 export function useMembers(orgSlug: string, params?: { q?: string; status?: MemberStatus | ''; tier_id?: string; page?: number; limit?: number }) {
   return useQuery({
     queryKey: [KEY, 'list', orgSlug, params],
-    queryFn: () => membersApi.list(orgSlug, params),
+    queryFn: ({ signal }) => membersApi.list(orgSlug, params, signal),
     enabled: !!orgSlug,
     placeholderData: keepPreviousData,
   });

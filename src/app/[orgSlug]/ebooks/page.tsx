@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Tablet, Plus, Search, Upload, Loader2, BookOpen, ShoppingCart, Download } from 'lucide-react';
 import { useEbooks, useUploadEbook, usePurchaseEbook, useDownloadEbook } from '@/hooks/useEbooks';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch } from '@bengo-hub/shared-ui-lib/search';
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { CapsuleTabs } from '@/components/ui/tabs';
@@ -25,10 +25,11 @@ export default function EbooksPage() {
   const params = useParams();
   const orgSlug = params?.orgSlug as string;
 
-  const [q, setQ] = useState('');
   const [format, setFormat] = useState<EbookFormat | ''>('');
   const [page, setPage] = useState(1);
-  const debouncedQ = useDebounce(q, 300);
+  // The box updates on every key; only the settled term reaches the query, and a new term starts at page 1.
+  const search = useDebouncedSearch({ onTermChange: () => setPage(1) });
+  const debouncedQ = search.term;
 
   const { data, isLoading } = useEbooks(orgSlug, { q: debouncedQ || undefined, format: format || undefined, page, limit: PAGE_SIZE });
   const upload = useUploadEbook(orgSlug);
@@ -86,7 +87,7 @@ export default function EbooksPage() {
 
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search eBooks…" className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-4 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
+        <input {...search.inputProps} placeholder="Search eBooks…" className="w-full h-11 rounded-xl border border-input bg-card pl-10 pr-4 text-sm focus:ring-1 focus:ring-ring focus:outline-none" />
       </div>
 
       <CapsuleTabs

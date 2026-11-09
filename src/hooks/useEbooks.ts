@@ -8,7 +8,7 @@ const KEY = 'ebooks';
 export function useEbooks(orgSlug: string, params?: { q?: string; format?: EbookFormat | ''; page?: number; limit?: number }) {
   return useQuery({
     queryKey: [KEY, 'list', orgSlug, params],
-    queryFn: () => ebooksApi.list(orgSlug, params),
+    queryFn: ({ signal }) => ebooksApi.list(orgSlug, params, signal),
     enabled: !!orgSlug,
     placeholderData: keepPreviousData,
   });

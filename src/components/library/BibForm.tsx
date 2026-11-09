@@ -14,7 +14,7 @@ import { CoverThumb } from '@/components/library/CoverThumb';
 import { CollectionFormDialog } from '@/components/library/CollectionFormDialog';
 import { BIB_FORMATS, type BibInput, type BibRecord, type BibFormat, type LibraryCollection, type BibDuplicateMatch } from '@/lib/api/catalog';
 import { useIsbnLookup, useCollections, useUploadCover, useCheckDuplicateBib } from '@/hooks/useCatalog';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedValue } from '@bengo-hub/shared-ui-lib/search';
 import { LANGUAGES } from '@/lib/languages';
 import { useAuthStore } from '@/store/auth';
 import { useBibDraft } from '@/hooks/useBibDraft';
@@ -58,8 +58,8 @@ export function BibForm({
 
   // Live pre-flight duplicate check, debounced so it doesn't fire on every keystroke — reduces the
   // "librarian must manually search the catalog first" burden the duplicate-detection gap caused.
-  const debouncedTitle = useDebounce(form.title, 500);
-  const debouncedIsbn = useDebounce(form.isbn, 500);
+  const debouncedTitle = useDebouncedValue(form.title, 500);
+  const debouncedIsbn = useDebouncedValue(form.isbn, 500);
   const { data: dupeCheck } = useCheckDuplicateBib(orgSlug, {
     title: debouncedTitle, isbn: debouncedIsbn, excludeId: initial?.id,
   });

@@ -9,7 +9,7 @@ const KEY = 'catalog';
 export function useBibs(orgSlug: string, params?: BibListParams) {
   return useQuery({
     queryKey: [KEY, 'bibs', orgSlug, params],
-    queryFn: () => catalogApi.listBibs(orgSlug, params),
+    queryFn: ({ signal }) => catalogApi.listBibs(orgSlug, params, signal),
     enabled: !!orgSlug,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
@@ -52,7 +52,7 @@ export function useUpdateBib(orgSlug: string) {
 
 /**
  * Live pre-flight duplicate check while cataloging — debounce title/isbn upstream (see
- * useDebounce) before passing them in. Disabled until there's enough text to make a check
+ * useDebouncedValue from @bengo-hub/shared-ui-lib/search) before passing them in. Disabled until there's enough text to make a check
  * worthwhile, so it doesn't fire on every keystroke of a 1-2 char title.
  */
 export function useCheckDuplicateBib(orgSlug: string, params: { title?: string; isbn?: string; excludeId?: string }) {
@@ -60,7 +60,7 @@ export function useCheckDuplicateBib(orgSlug: string, params: { title?: string; 
   const isbn = (params.isbn ?? '').replace(/[^0-9Xx]/g, '');
   return useQuery({
     queryKey: [KEY, 'check-duplicate', orgSlug, title, isbn, params.excludeId],
-    queryFn: () => catalogApi.checkDuplicateBib(orgSlug, { title, isbn, excludeId: params.excludeId }),
+    queryFn: ({ signal }) => catalogApi.checkDuplicateBib(orgSlug, { title, isbn, excludeId: params.excludeId }, signal),
     enabled: !!orgSlug && (title.length >= 3 || isbn.length >= 8),
     staleTime: 15_000,
   });
@@ -141,7 +141,7 @@ export function useCatalogSearch(
 ) {
   return useQuery({
     queryKey: [KEY, 'search', orgSlug, q, params],
-    queryFn: () => catalogApi.search(orgSlug, q, params),
+    queryFn: ({ signal }) => catalogApi.search(orgSlug, q, params, signal),
     enabled: !!orgSlug,
     placeholderData: keepPreviousData,
   });

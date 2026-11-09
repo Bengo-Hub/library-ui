@@ -40,8 +40,8 @@ export interface EbookLoan {
 }
 
 export const ebooksApi = {
-  list: async (orgSlug: string, params?: { q?: string; format?: EbookFormat | ''; page?: number; limit?: number }): Promise<Paginated<Ebook>> => {
-    const res = await apiClient.get<Paginated<Ebook> | Ebook[]>(`${libBase(orgSlug)}/ebooks`, params);
+  list: async (orgSlug: string, params?: { q?: string; format?: EbookFormat | ''; page?: number; limit?: number }, signal?: AbortSignal): Promise<Paginated<Ebook>> => {
+    const res = await apiClient.get<Paginated<Ebook> | Ebook[]>(`${libBase(orgSlug)}/ebooks`, params, { signal });
     return normalizePage<Ebook>(res);
   },
 

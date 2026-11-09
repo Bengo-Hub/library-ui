@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useDebouncedCallback } from '@bengo-hub/shared-ui-lib/search';
 import { getFormDraft, saveFormDraft, clearFormDraft, type FormDraftRow } from '@/lib/db/library-db';
 
 const AUTOSAVE_MS = 700;
@@ -35,7 +36,10 @@ export function useBibDraft<T extends Record<string, unknown>>({ enabled, scopeK
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
   const coversRef = useRef<{ cover?: File | null; coverBack?: File | null }>({});
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Reads the live snapshot and covers through refs when it fires, so a save never writes stale data.
+  const scheduleSave = useDebouncedCallback((key: string) => {
+    saveFormDraft(key, snapshotRef.current, coversRef.current);
+  }, AUTOSAVE_MS);
   const checkedKeyRef = useRef('');
 
   // ── Offer a draft once per scope (never auto-applies it) ────────────────────
@@ -52,14 +56,12 @@ export function useBibDraft<T extends Record<string, unknown>>({ enabled, scopeK
   // ── Debounced autosave ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!enabled || !scopeKey) return;
-    clearTimeout(timerRef.current);
+    scheduleSave.cancel();
     if (isEmpty(snapshotRef.current)) return;
-    timerRef.current = setTimeout(() => {
-      saveFormDraft(scopeKey, snapshotRef.current, coversRef.current);
-    }, AUTOSAVE_MS);
-    return () => clearTimeout(timerRef.current);
+    scheduleSave(scopeKey);
+    return () => scheduleSave.cancel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, scopeKey, snapshot]);
+  }, [enabled, scopeKey, snapshot, scheduleSave]);
 
   // ── Leave guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -89,9 +91,9 @@ export function useBibDraft<T extends Record<string, unknown>>({ enabled, scopeK
 
   /** Call after a confirmed successful save — never on failure, so a dropped connection doesn't lose the draft twice. */
   const clear = useCallback(async () => {
-    clearTimeout(timerRef.current);
+    scheduleSave.cancel();
     if (scopeKey) await clearFormDraft(scopeKey);
-  }, [scopeKey]);
+  }, [scopeKey, scheduleSave]);
 
   return { pendingDraft, dismissDraft, discardDraft, clear, setCovers };
 }

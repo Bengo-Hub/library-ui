@@ -32,9 +32,3 @@ export function isOverdue(dueDate?: string | null): boolean {
   const d = daysUntil(dueDate);
   return d !== null && d < 0;
 }
-
-/** Debounce hook value helper (use with useState/useEffect in pages). */
-export function useDebouncedValue<T>(value: T, delay = 350): T {
-  // implemented inline in pages where react is imported; kept as a re-export point.
-  return value;
-}

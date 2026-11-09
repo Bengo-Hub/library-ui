@@ -4,15 +4,17 @@ import { cn } from '@/lib/utils';
 import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedValue } from '@bengo-hub/shared-ui-lib/search';
 import { catalogTermsApi, type TermKind } from '@/lib/api/catalog-terms';
 
 function useTermOptions(orgSlug: string, kind: TermKind, query: string) {
-  const debounced = useDebounce(query, 250);
+  const debounced = useDebouncedValue(query, 250);
   return useQuery({
     queryKey: ['catalog-terms', orgSlug, kind, debounced],
-    queryFn: () => catalogTermsApi.list(orgSlug, kind, debounced || undefined),
+    queryFn: ({ signal }) => catalogTermsApi.list(orgSlug, kind, debounced || undefined, signal),
     staleTime: 30_000,
+    // Keep the current options on screen while the next term loads.
+    placeholderData: (prev) => prev,
   });
 }
 

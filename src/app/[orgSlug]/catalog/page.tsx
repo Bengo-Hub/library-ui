@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Library, Plus, SlidersHorizontal, Eye, BookText, Pencil, Trash2, X } from 'lucide-react';
 import { useCatalogSearch, useCatalogFacets, useDeleteBib } from '@/hooks/useCatalog';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch } from '@bengo-hub/shared-ui-lib/search';
 import { BIB_FORMATS, type BibFormat, type BibRecord } from '@/lib/api/catalog';
 import { PageHeader, EmptyState } from '@/components/ui/page';
 import { Button, Badge } from '@/components/ui/base';
@@ -29,7 +29,10 @@ function CatalogContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [q, setQ] = useState(searchParams?.get('q') ?? '');
+  // The scanner only hands over finished text (Enter or a camera read), so it is searched at once.
+  const search = useDebouncedSearch({ initial: searchParams?.get('q') ?? '' });
+  const q = search.value;
+  const debouncedQ = search.term;
   const [format, setFormat] = useState<BibFormat | ''>('');
   const [subjectId, setSubjectId] = useState('');
   const [branchId, setBranchId] = useState('');
@@ -38,7 +41,6 @@ function CatalogContent() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = useState<BibRecord | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const debouncedQ = useDebounce(q, 350);
   const { openPreview, previewProps } = useImagePreview();
   const { can } = usePermissions();
   const canDelete = can('library.catalog.delete');
@@ -179,7 +181,7 @@ function CatalogContent() {
       <div className="flex flex-col gap-2 mb-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <ScannerInput
-            onScan={(value) => setQ(value)}
+            onScan={(value) => search.setValue(value, { immediate: true })}
             placeholder="Search by title, author, ISBN, subject, or scan the ISBN…"
             className="flex-1"
           />
@@ -188,7 +190,7 @@ function CatalogContent() {
         {q && (
           <Badge variant="outline" className="w-fit gap-1.5">
             Searching: <span className="font-medium">{q}</span>
-            <button type="button" onClick={() => setQ('')} aria-label="Clear search" className="ml-0.5 hover:text-destructive">
+            <button type="button" onClick={search.clear} aria-label="Clear search" className="ml-0.5 hover:text-destructive">
               <X className="h-3 w-3" />
             </button>
           </Badge>

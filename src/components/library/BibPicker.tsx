@@ -5,7 +5,7 @@ import { Search } from 'lucide-react';
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/base';
 import { useBibs } from '@/hooks/useCatalog';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch } from '@bengo-hub/shared-ui-lib/search';
 import { CoverThumb } from '@/components/library/CoverThumb';
 
 /** Searchable title selector dialog — used for placing holds against a bib record. */
@@ -20,9 +20,9 @@ export function BibPicker({
   onSelect: (bibId: string) => void;
   onCancel: () => void;
 }) {
-  const [q, setQ] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
-  const debounced = useDebounce(q, 300);
+  const search = useDebouncedSearch();
+  const debounced = search.term;
   const { data, isFetching } = useBibs(orgSlug, { q: debounced || undefined, limit: 8 });
   const bibs = data?.data ?? [];
 
@@ -44,8 +44,7 @@ export function BibPicker({
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          {...search.inputProps}
           placeholder="Search by title, author, ISBN…"
           className="w-full h-10 rounded-lg border border-input bg-transparent pl-10 pr-3 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
         />

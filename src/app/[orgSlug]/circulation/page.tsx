@@ -7,7 +7,7 @@ import { BookOpen, ScanLine, User, RotateCcw, Undo2, CheckCircle2, AlertTriangle
 import { enqueue, startOfflineSync, uid, queueSize } from '@/lib/offline-queue';
 import { useCheckout, useCheckoutQuote, useReturn, useRenew, useMarkLost, useLoans } from '@/hooks/useCirculation';
 import { useMembers } from '@/hooks/useMembers';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebouncedSearch, useDebouncedValue } from '@bengo-hub/shared-ui-lib/search';
 import { PageHeader, Skeleton } from '@/components/ui/page';
 import { Button, Badge, Card } from '@/components/ui/base';
 import { CapsuleTabs } from '@/components/ui/tabs';
@@ -28,7 +28,8 @@ export default function CirculationPage() {
   const [member, setMember] = useState<Member | null>(null);
   const [copyBarcode, setCopyBarcode] = useState('');
   const [inHouse, setInHouse] = useState(false);
-  const [memberQuery, setMemberQuery] = useState('');
+  // The member box updates on every key; only the settled term reaches the member search.
+  const memberSearch = useDebouncedSearch();
   const [scanTarget, setScanTarget] = useState<null | 'member' | 'copy'>(null);
   const [queued, setQueued] = useState(0);
   // Borrowing fee: the librarian arms "collected" before scanning, and the choice clears
@@ -49,8 +50,8 @@ export default function CirculationPage() {
     return () => window.removeEventListener('library-queue-changed', h);
   }, []);
 
-  const debouncedMember = useDebounce(memberQuery, 300);
-  const debouncedCopy = useDebounce(copyBarcode.trim(), 400);
+  const debouncedMember = memberSearch.term;
+  const debouncedCopy = useDebouncedValue(copyBarcode.trim(), 400);
   const { data: quote } = useCheckoutQuote(orgSlug, member?.id, debouncedCopy, inHouse);
   const { data: memberResults } = useMembers(orgSlug, { q: debouncedMember || undefined, status: 'active', limit: 6 });
   const { data: recent, isLoading: loansLoading } = useLoans(orgSlug, { limit: 12 });
@@ -175,17 +176,16 @@ export default function CirculationPage() {
                   <div className="space-y-2">
                     <div className="flex gap-2">
                       <input
-                        value={memberQuery}
-                        onChange={(e) => setMemberQuery(e.target.value)}
+                        {...memberSearch.inputProps}
                         placeholder="Scan member card or search…"
                         className="flex-1 rounded-lg border border-input bg-transparent px-3 py-2.5 text-sm focus:ring-1 focus:ring-ring focus:outline-none"
                       />
                       <Button variant="outline" className="gap-1.5" onClick={() => setScanTarget('member')}><ScanLine className="h-4 w-4" /> Scan</Button>
                     </div>
-                    {memberQuery && (
+                    {memberSearch.value && (
                       <div className="rounded-lg border border-border divide-y divide-border max-h-48 overflow-y-auto">
                         {(memberResults?.data ?? []).map((m) => (
-                          <button key={m.id} type="button" onClick={() => { setMember(m); setMemberQuery(''); }} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-accent/40">
+                          <button key={m.id} type="button" onClick={() => { setMember(m); memberSearch.clear(); }} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-accent/40">
                             <span className="text-sm font-medium truncate flex-1">{m.full_name ?? `${m.first_name} ${m.last_name}`}</span>
                             <span className="text-xs text-muted-foreground">{m.membership_no}</span>
                           </button>
@@ -328,7 +328,7 @@ export default function CirculationPage() {
         <BarcodeScanner
           hint={scanTarget === 'member' ? 'Point the camera at the member card barcode.' : 'Point the camera at the copy barcode.'}
           onScan={(text) => {
-            if (scanTarget === 'member') setMemberQuery(text);
+            if (scanTarget === 'member') memberSearch.setValue(text, { immediate: true });
             else setCopyBarcode(text);
             setScanTarget(null);
           }}
