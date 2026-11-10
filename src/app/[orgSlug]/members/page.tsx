@@ -48,6 +48,7 @@ export default function MembersPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Member | undefined>();
+  const [formError, setFormError] = useState<string | null>(null);
   const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
   const [toDelete, setToDelete] = useState<Member | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -130,6 +131,7 @@ export default function MembersPage() {
   ];
 
   async function handleSubmit(input: MemberInput) {
+    setFormError(null);
     try {
       if (editing) {
         await updateMember.mutateAsync({ id: editing.id, data: input });
@@ -141,7 +143,9 @@ export default function MembersPage() {
       setDialogOpen(false);
       setEditing(undefined);
     } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to save member'));
+      const msg = await apiErrorMessage(e, 'Failed to save member');
+      setFormError(msg);
+      toast.error(msg);
     }
   }
 
@@ -208,8 +212,9 @@ export default function MembersPage() {
         orgSlug={orgSlug}
         initial={editing}
         saving={createMember.isPending || updateMember.isPending}
+        error={formError}
         onSubmit={handleSubmit}
-        onClose={() => { setDialogOpen(false); setEditing(undefined); }}
+        onClose={() => { setDialogOpen(false); setEditing(undefined); setFormError(null); }}
       />
 
       <PdfPreview {...previewProps} />

@@ -44,6 +44,7 @@ export default function MemberDetailPage() {
 
   const [tab, setTab] = useState<Tab>('loans');
   const [editOpen, setEditOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [toWaive, setToWaive] = useState<Fine | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [payIntent, setPayIntent] = useState<PaymentIntent | null>(null);
@@ -52,12 +53,15 @@ export default function MemberDetailPage() {
   const outstanding = fines.filter((f) => f.status === 'outstanding' || f.status === 'partial');
 
   async function handleEdit(data: MemberInput) {
+    setFormError(null);
     try {
       await updateMember.mutateAsync({ id, data });
       toast.success('Member updated');
       setEditOpen(false);
     } catch (e) {
-      toast.error(await apiErrorMessage(e, 'Failed to update member'));
+      const msg = await apiErrorMessage(e, 'Failed to update member');
+      setFormError(msg);
+      toast.error(msg);
     }
   }
 
@@ -299,7 +303,7 @@ export default function MemberDetailPage() {
         </Card>
       )}
 
-      <MemberFormDialog open={editOpen} orgSlug={orgSlug} initial={member} saving={updateMember.isPending} onSubmit={handleEdit} onClose={() => setEditOpen(false)} />
+      <MemberFormDialog open={editOpen} orgSlug={orgSlug} initial={member} saving={updateMember.isPending} error={formError} onSubmit={handleEdit} onClose={() => { setEditOpen(false); setFormError(null); }} />
 
       <PdfPreview {...previewProps} />
 

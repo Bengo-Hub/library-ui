@@ -15,12 +15,14 @@ const inputCls =
   'w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm focus:ring-1 focus:ring-ring focus:outline-none';
 
 export function MemberFormDialog({
-  open, orgSlug, initial, saving, onSubmit, onClose,
+  open, orgSlug, initial, saving, error, onSubmit, onClose,
 }: {
   open: boolean;
   orgSlug: string;
   initial?: Member;
   saving?: boolean;
+  /** The API's message from the last failed save (for example the CRM refusing a phone). */
+  error?: string | null;
   onSubmit: (data: MemberInput) => void;
   onClose: () => void;
 }) {
@@ -99,6 +101,11 @@ export function MemberFormDialog({
         </>
       }
     >
+      {error ? (
+        <p role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Membership no." hint="Leave blank to auto-generate">
           <input value={form.membership_no ?? ''} onChange={(e) => set('membership_no', e.target.value)} className={inputCls} placeholder="Auto" />
