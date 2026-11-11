@@ -6,9 +6,8 @@ type Operator = "and" | "or";
  * isPlatformOwner — single source of truth for "is this the SaaS platform operator".
  *
  * Platform-level pages are owner-only. A tenant `admin` / `library_admin` / `superuser` is
- * NOT a platform owner. ONLY the `is_platform_owner` claim or membership in the codevertex
- * platform tenant qualifies. Codevertex membership is verified via the SERVER-returned tenant
- * slug (`tenant_slug`/`tenantSlug`), never the URL `orgSlug`.
+ * NOT a platform owner. ONLY the signed `is_platform_owner` claim qualifies, never a tenant
+ * slug or the URL `orgSlug`.
  */
 export function isPlatformOwner(
   user:
@@ -21,8 +20,7 @@ export function isPlatformOwner(
     | undefined,
 ): boolean {
   if (!user) return false;
-  const slug = user.tenant_slug ?? user.tenantSlug ?? "";
-  return user.isPlatformOwner === true || slug === "codevertex";
+  return user.isPlatformOwner === true;
 }
 
 // Roles that grant full access to TENANT-level resources. Mirrors the library-api RBAC

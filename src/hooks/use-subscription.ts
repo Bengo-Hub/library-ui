@@ -55,8 +55,7 @@ export function useSubscription() {
   // real RBAC elsewhere, just not this.
   const isPlatformOwner =
     !!(user as any)?.is_platform_owner ||
-    !!(user as any)?.isPlatformOwner ||
-    tenantSlug === 'codevertex';
+    !!(user as any)?.isPlatformOwner;
   const isServiceCharge = (user as any)?.billing_mode === 'service_charge';
   const isDemo = !!(user as any)?.is_demo || tenantSlug === 'codevertex-demo';
   // Platform-granted per-tenant exemption (sub_exempt JWT claim) — the /me-derived `user` object
@@ -229,8 +228,7 @@ export function useSubscriptionEntitlements(): SubscriptionEntitlements {
     const tenantSlug = (user?.tenant_slug as string | undefined) ?? (tenantClaims.tenant_slug as string | undefined);
     const isPlatformOwner =
       !!(user as { isPlatformOwner?: boolean } | null)?.isPlatformOwner ||
-      tenantClaims.is_platform_owner === true ||
-      tenantSlug === "codevertex";
+      tenantClaims.is_platform_owner === true;
     const isDemo = tenantClaims.is_demo === true || tenantSlug === "codevertex-demo";
     const isServiceCharge = tenantClaims.billing_mode === "service_charge";
     const isSubExempt = tenantClaims.sub_exempt === true;
