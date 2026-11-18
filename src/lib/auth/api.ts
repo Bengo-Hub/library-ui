@@ -144,7 +144,8 @@ export async function fetchProfile(accessToken?: string): Promise<{
     isSuperUser: boolean;
     tenant?: Record<string, unknown>;
 }> {
-    const token = accessToken ?? (typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null);
+    // The token the API client already holds; no token is read from browser storage.
+    const token = accessToken ?? apiClient.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

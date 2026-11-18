@@ -123,6 +123,11 @@ class ApiClient {
         this.accessToken = token;
     }
 
+    /** The signed-in access token this client sends (held in memory with the cookie session). */
+    public getAccessToken(): string | null {
+        return this.accessToken;
+    }
+
     public setTenantInfo(id: string | null, slug: string | null) {
         this.tenantId = id;
         this.tenantSlug = slug;

@@ -8,8 +8,29 @@ import {
     storeState,
     storeVerifier
 } from '@/lib/auth/pkce';
+import { cookieMode } from '@/lib/auth/session-mode';
+import { isTerminalSession } from '@/lib/auth/session-kind';
+import { scrubStoredSession } from '@bengo-hub/shared-ui-lib/auth';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+
+const AUTH_STORAGE_KEY = 'library-auth-storage';
+
+/** True when the stored session is a PIN or badge desk's terminal JWT (kept across reloads). */
+function storedTerminalSession(): boolean {
+    try {
+        const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+        const parsed = raw ? (JSON.parse(raw) as { state?: { session?: { accessToken?: string } } }) : null;
+        return isTerminalSession(parsed?.state?.session?.accessToken);
+    } catch {
+        return false;
+    }
+}
+
+// Cookie session (fleet plan G11): sso tokens an earlier build stored are dropped before the store
+// loads; from here on an sso sign-in persists only the profile. A PIN or badge desk's terminal JWT
+// has no sso cookie behind it, so it stays stored and the desk stays signed in across reloads.
+if (cookieMode() && !storedTerminalSession()) scrubStoredSession(AUTH_STORAGE_KEY);
 
 export interface UserProfile {
     id: string;
@@ -60,6 +81,25 @@ export const useAuthStore = create<AuthState>()(
             lastAuthenticatedAt: null,
 
             initialize: async () => {
+                // A stored desk session takes the stored-token path below, as before.
+                if (cookieMode() && !isTerminalSession(get().session?.accessToken)) {
+                    // No sso token is stored: a known profile gets its first token through the sso cookie.
+                    const known = get().user;
+                    if (!known) {
+                        set({ status: 'idle' });
+                        return;
+                    }
+                    set({ status: 'loading' });
+                    const { getCookieSession } = await import('@/lib/auth/cookie-session');
+                    const token = await getCookieSession().getAccessToken();
+                    if (!token) {
+                        set({ status: 'idle', session: null, user: null });
+                        return;
+                    }
+                    apiClient.setTenantInfo(known.tenant_id, known.tenant_slug);
+                    set({ status: 'authenticated', lastAuthenticatedAt: Date.now() });
+                    return;
+                }
                 const { session, user } = get();
                 if (!session) {
                     set({ status: 'idle' });
@@ -160,8 +200,10 @@ export const useAuthStore = create<AuthState>()(
                         expiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
                     };
 
-                    apiClient.setAccessToken(session.accessToken);
-                    set({ session });
+                    if (!(await adoptSession(session))) {
+                        set({ status: 'error', error: 'Sign-in failed' });
+                        return;
+                    }
 
                     // Call library-api /auth/me to sync local RBAC roles and permissions.
                     let attempts = 0;
@@ -197,8 +239,10 @@ export const useAuthStore = create<AuthState>()(
                         expiresAt: new Date(Date.now() + tokens.expiresIn * 1000).toISOString(),
                     };
 
-                    apiClient.setAccessToken(session.accessToken);
-                    set({ session });
+                    if (!(await adoptSession(session))) {
+                        set({ status: 'error', error: 'Biometric sign-in failed' });
+                        return;
+                    }
 
                     const slug = tenantSlug ?? (typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') : null) ?? '';
                     let attempts = 0;
@@ -230,7 +274,14 @@ export const useAuthStore = create<AuthState>()(
                 const slug = get().user?.tenant_slug
                     ?? (typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') : null)
                     ?? '';
-                await revokeServerSession(token);
+                if (cookieMode() && !isTerminalSession(token)) {
+                    // Revokes the session, clears the sso cookie and signs the other tabs out.
+                    const { getCookieSession } = await import('@/lib/auth/cookie-session');
+                    await getCookieSession().end();
+                } else {
+                    // A PIN or badge desk never touches the sso cookie: bearer revoke, as before.
+                    await revokeServerSession(token);
+                }
                 set({ status: 'idle', user: null, session: null, subscriptionInfo: undefined, lastAuthenticatedAt: null });
                 apiClient.setAccessToken(null);
                 apiClient.setTenantInfo(null, null);
@@ -238,7 +289,7 @@ export const useAuthStore = create<AuthState>()(
                 if (typeof window !== 'undefined') {
                     try { localStorage.removeItem('tenantId'); } catch { /* no-op */ }
                     try { localStorage.removeItem('tenantSlug'); } catch { /* no-op */ }
-                    try { localStorage.removeItem('library-auth-storage'); } catch { /* no-op */ }
+                    try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* no-op */ }
                     try { sessionStorage.clear(); } catch { /* no-op */ }
                     // Desk/kiosk default: return to the PIN login page (not the SSO accounts page).
                     window.location.href = slug ? `/${slug}/pin-login` : '/';
@@ -259,12 +310,13 @@ export const useAuthStore = create<AuthState>()(
             },
         }),
         {
-            name: 'library-auth-storage',
+            name: AUTH_STORAGE_KEY,
             storage: createJSONStorage(() => localStorage),
-            partialize: (state) => ({
-                session: state.session,
-                user: state.user,
-            }),
+            // The cookie session persists an sso sign-in's profile only; its access token stays in
+            // memory. A PIN or badge desk's terminal JWT is stored as before, so the desk survives a reload.
+            partialize: (state) => (cookieMode() && !isTerminalSession(state.session?.accessToken)
+                ? { user: state.user }
+                : { session: state.session, user: state.user }),
             // Restore the access token + tenant headers onto the API client the instant the store
             // rehydrates — BEFORE any React Query (e.g. useMe → /auth/me) fires. Otherwise the first
             // request on a page refresh goes out unauthenticated, 401s, and the on401 handler logs
@@ -285,3 +337,23 @@ export const useAuthStore = create<AuthState>()(
         }
     )
 );
+
+/**
+ * Puts a new sign-in's tokens to use. With the cookie session the refresh token goes into
+ * auth-api's HttpOnly cookie and is dropped here; the store holds only the in-memory access token
+ * the cookie session hands back. A PIN or badge desk's terminal JWT (no refresh token) is stored as
+ * before, also with the cookie session, so the desk stays signed in across reloads. False when the
+ * cookie was refused.
+ */
+async function adoptSession(session: Session): Promise<boolean> {
+    if (!cookieMode() || isTerminalSession(session.accessToken) || !session.refreshToken) {
+        apiClient.setAccessToken(session.accessToken);
+        useAuthStore.setState({ session });
+        return true;
+    }
+    const { getCookieSession } = await import('@/lib/auth/cookie-session');
+    // A new sign-in replaces whoever was stored, so it is not taken for a user switch.
+    useAuthStore.setState({ user: null, session: null });
+    const started = await getCookieSession().start(session.refreshToken);
+    return 'token' in started && !!useAuthStore.getState().session;
+}
