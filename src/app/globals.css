@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Dark styles follow the app's own theme class, not the computer's dark mode (Tailwind 4's default). */
+@custom-variant dark (&:is(.dark, .dark *));
 @source "../../node_modules/@bengo-hub/shared-ui-lib/dist";
 
 @theme {
